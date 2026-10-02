@@ -113,6 +113,123 @@ public final class ParallelExtract {
 
 	private static Started started;
 
+	/** Which entities the frame shows, besides being visible: the game's camera rules (see LevelExtractorMixin). */
+	public interface Shown {
+		boolean shown(Entity entity);
+	}
+
+	/** An entity's partial tick this frame (frozen entities have their own). */
+	public interface Partial {
+		float of(Entity entity);
+	}
+
+	/** {@link #extractLevel} at work: everything needed to finish it. */
+	private record Level(Workers.Started work, List<Entity> entities, boolean[] untrusted, EntityRenderState[] states,
+			EntityRenderDispatcher dispatcher, Visibility test, Shown shown, Partial partial, Extractor extractor, List<EntityRenderState> output) {}
+
+	private static Level level;
+
+	/**
+	 * The level's entities' render states, added to {@code output} in the
+	 * game's order. On the helpers, in one go per entity: whether its
+	 * renderer is trusted, whether it's visible and shown, and its state;
+	 * meanwhile this thread goes on with the rest of the frame's extraction
+	 * (blocks, particles, sky, the HUD). {@link #finish} waits for them, then
+	 * does the untrusted ones here, in order.
+	 */
+	public static void extractLevel(List<Entity> entities, EntityRenderDispatcher dispatcher, Visibility test, Shown shown, Partial partial,
+			Extractor extractor, List<EntityRenderState> output) {
+		finish();
+		int count = entities.size();
+		boolean[] untrusted = new boolean[count];
+		EntityRenderState[] states = new EntityRenderState[count];
+		if (count < PARALLEL_MIN) {
+			java.util.Arrays.fill(untrusted, true);
+			level = new Level(null, entities, untrusted, states, dispatcher, test, shown, partial, extractor, output);
+			finish();
+			return;
+		}
+		if (!announced) {
+			announced = true;
+			LOG.info("Polonium: entity render states made on several threads");
+		}
+		int parts = Workers.PARTS;
+		List<Runnable> jobs = new ArrayList<>(parts);
+		for (int p = 0; p < parts; p++) {
+			int from = count * p / parts;
+			int to = count * (p + 1) / parts;
+			jobs.add(() -> {
+				KeptStates.inLevel(true);
+				try {
+					for (int i = from; i < to; i++) {
+						Entity entity = entities.get(i);
+						if (!trusted(dispatcher.getRenderer(entity))) {
+							untrusted[i] = true;
+						} else if (test.visible(entity) && shown.shown(entity)) {
+							states[i] = made(entity, partial, extractor);
+							//#if MC >= 26.2
+							com.arcticlauncher.polonium.gpu.Crowd.precheck(states[i]);
+							//#endif
+						}
+					}
+				} finally {
+					KeptStates.inLevel(false);
+				}
+			});
+		}
+		level = new Level(Workers.start(jobs), entities, untrusted, states, dispatcher, test, shown, partial, extractor, output);
+	}
+
+	/** As the game does for an entity it shows: one in its first tick has no previous position yet. */
+	private static EntityRenderState made(Entity entity, Partial partial, Extractor extractor) {
+		if (entity.tickCount == 0) {
+			entity.xOld = entity.getX();
+			entity.yOld = entity.getY();
+			entity.zOld = entity.getZ();
+		}
+		return extractor.extract(entity, partial.of(entity));
+	}
+
+	private static void finishLevel() {
+		Level work = level;
+		if (work == null) {
+			return;
+		}
+		level = null;
+		boolean[] untrusted = work.untrusted;
+		if (work.work != null) {
+			try {
+				Workers.join(work.work);
+			} catch (RuntimeException | Error e) {
+				enabled = false;
+				LOG.error("Polonium: making entity render states on several threads failed; back to one thread from now on", e);
+				java.util.Arrays.fill(work.states, null);
+				java.util.Arrays.fill(untrusted, true);
+			}
+		}
+		KeptStates.inLevel(true);
+		try {
+			for (int i = 0; i < untrusted.length; i++) {
+				if (untrusted[i]) {
+					Entity entity = work.entities.get(i);
+					if (work.test.visible(entity) && work.shown.shown(entity)) {
+						work.states[i] = made(entity, work.partial, work.extractor);
+					}
+				}
+			}
+		} finally {
+			KeptStates.inLevel(false);
+		}
+		int drawn = 0;
+		for (EntityRenderState state : work.states) {
+			if (state != null) {
+				work.output.add(state);
+				drawn++;
+			}
+		}
+		lastDrawn = drawn;
+	}
+
 	/**
 	 * Every visible entity's render state, added to {@code output} in order
 	 * ({@code trusted}: per entity, from {@link #visible}). With many
@@ -172,8 +289,9 @@ public final class ParallelExtract {
 		started = new Started(Workers.start(jobs), states, entities, partials, extractor, parallel, output);
 	}
 
-	/** The entity states {@link #extract} left on the helpers, waited for and added to the frame (if any are left). */
+	/** The entity states {@link #extract} or {@link #extractLevel} left on the helpers, waited for and added to the frame (if any are left). */
 	public static void finish() {
+		finishLevel();
 		Started work = started;
 		if (work == null) {
 			return;

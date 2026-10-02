@@ -77,31 +77,16 @@ abstract class LevelExtractorMixin {
 		}
 		com.arcticlauncher.polonium.Workers.load(all.size());
 		EntityRenderDispatcher dispatcher = this.levelRenderer.entityRenderDispatcher();
-		boolean[] trustedAll = new boolean[all.size()];
-		boolean[] seen = ParallelExtract.visible(all, dispatcher, e -> this.isEntityVisible(e, frustum, camX, camY, camZ), trustedAll);
-		List<Entity> visible = new ArrayList<>(all.size());
-		float[] partials = new float[all.size()];
-		boolean[] trusted = new boolean[all.size()];
 		// The same for every entity but those the tick rate freezes.
 		float running = deltaTracker.getGameTimeDeltaPartialTick(true);
 		float frozen = deltaTracker.getGameTimeDeltaPartialTick(false);
-		for (int i = 0; i < all.size(); i++) {
-			Entity entity = all.get(i);
-			if (seen[i]
-					&& (entity != camera.entity() || camera.isDetached()
-							|| camera.entity() instanceof LivingEntity && ((LivingEntity) camera.entity()).isSleeping())
-					&& (!(entity instanceof LocalPlayer) || camera.entity() == entity)) {
-				if (entity.tickCount == 0) {
-					entity.xOld = entity.getX();
-					entity.yOld = entity.getY();
-					entity.zOld = entity.getZ();
-				}
-				trusted[visible.size()] = trustedAll[i];
-				partials[visible.size()] = tickRateManager.isEntityFrozen(entity) ? frozen : running;
-				visible.add(entity);
-			}
-		}
-		ParallelExtract.extract(visible, partials, trusted, this::extractEntity, output.entityRenderStates);
+		Entity cameraEntity = camera.entity();
+		boolean detached = camera.isDetached();
+		boolean sleeping = cameraEntity instanceof LivingEntity living && living.isSleeping();
+		ParallelExtract.extractLevel(all, dispatcher, e -> this.isEntityVisible(e, frustum, camX, camY, camZ),
+				// The game's camera rules: not the camera's own entity in first person (unless asleep), no other local player.
+				e -> (e != cameraEntity || detached || sleeping) && (!(e instanceof LocalPlayer) || cameraEntity == e),
+				e -> tickRateManager.isEntityFrozen(e) ? frozen : running, this::extractEntity, output.entityRenderStates);
 		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_ENTITIES);
 		ci.cancel();
 	}
