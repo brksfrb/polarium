@@ -421,6 +421,43 @@ final class CrowdFrame {
 		}
 	}
 
+	/**
+	 * As {@link #sortFarToNear(int[], int, float[])}, starting from the order
+	 * of a frame ago ({@code previous}, if it had as many): a crowd's
+	 * distances hardly change from one frame to the next, so that's nearly
+	 * sorted already and an insertion sort puts it right in about one pass.
+	 * The same order as a full sort (the same keys); if too much changed, a
+	 * full sort after all.
+	 */
+	static void sortFarToNear(int[] items, int count, float[] distance, int @org.jspecify.annotations.Nullable [] previous, int previousCount) {
+		if (previous == null || previousCount != count || count < 64) {
+			sortFarToNear(items, count, distance);
+			return;
+		}
+		long[] keys = sortKeys.length >= count ? sortKeys : (sortKeys = new long[Math.max(count, sortKeys.length * 2)]);
+		for (int i = 0; i < count; i++) {
+			int item = previous[i];
+			keys[i] = ((long) ~Float.floatToRawIntBits(distance[item]) << 32) | (item & 0xFFFFFFFFL);
+		}
+		long budget = 8L * count;
+		for (int i = 1; i < count; i++) {
+			long key = keys[i];
+			int j = i - 1;
+			while (j >= 0 && keys[j] > key) {
+				keys[j + 1] = keys[j];
+				j--;
+				if (--budget < 0) {
+					sortFarToNear(items, count, distance);
+					return;
+				}
+			}
+			keys[j + 1] = key;
+		}
+		for (int i = 0; i < count; i++) {
+			items[i] = (int) keys[i];
+		}
+	}
+
 	/** Room for {@code count} targets, filled in with {@link #targetAt} (on any thread); returns the first. */
 	static int reserveTargets(int count) {
 		int first = targetCount;

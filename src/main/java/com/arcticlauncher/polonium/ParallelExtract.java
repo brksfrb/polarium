@@ -50,6 +50,9 @@ public final class ParallelExtract {
 	public static boolean[] visible(List<Entity> entities, EntityRenderDispatcher dispatcher, Visibility test, boolean[] trusted) {
 		int count = entities.size();
 		boolean[] visible = new boolean[count];
+		if (Timeline.ON) {
+			VISIBLE_CALLS[count < PARALLEL_MIN ? 0 : 1]++;
+		}
 		if (count < PARALLEL_MIN) {
 			for (int i = 0; i < count; i++) {
 				trusted[i] = trusted(dispatcher.getRenderer(entities.get(i)));
@@ -82,10 +85,16 @@ public final class ParallelExtract {
 		for (int i = 0; i < count; i++) {
 			if (!trusted[i]) {
 				visible[i] = test.visible(entities.get(i));
+				if (Timeline.ON) {
+					VISIBLE_CALLS[2]++;
+				}
 			}
 		}
 		return visible;
 	}
+
+	/** With -Dpolonium.debugTimeline: visibility tests of short lists, of long lists, and of untrusted entities one by one. */
+	public static final long[] VISIBLE_CALLS = new long[3];
 
 	/** The game's own per-entity extraction (with whatever other mods add to it). */
 	public interface Extractor {

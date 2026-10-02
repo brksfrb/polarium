@@ -364,6 +364,9 @@ public final class CrowdTags {
 	 * The name tag renderer got to a list's stand-in: every tag in it, drawn
 	 * on the GPU from its player's kept runs; see-through tags back to front.
 	 */
+	/** The see-through tags' order a frame ago (most of this frame's is the same). */
+	private static int @org.jspecify.annotations.Nullable [] lastSeeThroughOrder;
+
 	public static void draw(Component marker, GpuText gpu, Font font) {
 		Tags tags = marker == NORMAL ? normal : seeThrough;
 		Font.DisplayMode mode = marker == NORMAL ? Font.DisplayMode.NORMAL : Font.DisplayMode.SEE_THROUGH;
@@ -372,7 +375,9 @@ public final class CrowdTags {
 			order[i] = i;
 		}
 		if (mode == Font.DisplayMode.SEE_THROUGH) {
-			CrowdFrame.sortFarToNear(order, order.length, tags.distance);
+			CrowdFrame.sortFarToNear(order, order.length, tags.distance, lastSeeThroughOrder, lastSeeThroughOrder == null ? 0
+					: lastSeeThroughOrder.length);
+			lastSeeThroughOrder = order;
 		}
 		int count = order.length;
 		GlyphRuns.Run[][] runs = new GlyphRuns.Run[count][];

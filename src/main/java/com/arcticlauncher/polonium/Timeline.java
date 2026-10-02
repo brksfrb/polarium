@@ -9,7 +9,7 @@ public final class Timeline {
 	public static final boolean ON = Boolean.getBoolean("polonium.debugTimeline");
 
 	public enum Step {
-		FRAME, RUN_TASKS, TICK, PICK, ACQUIRE, BLIT, SUBMIT, PRESENT, TICK_ENTITIES, PARALLEL_TICKS, EXTRACT, EXTRACT_ENTITIES, EXTRACT_JOIN, RENDER, SUBMIT_ENTITIES, CROWD_BULK, CROWD_END,
+		FRAME, RUN_TICK, RENDER_FRAME, GUI_UPDATE, LEVEL_UPDATE, CAMERA_UPDATE, PENDING_TASKS, RUN_TASKS, TICK, PICK, ACQUIRE, BLIT, SUBMIT, PRESENT, TICK_ENTITIES, PARALLEL_TICKS, EXTRACT, EXTRACT_ENTITIES, EXTRACT_JOIN, RENDER, SUBMIT_ENTITIES, CROWD_BULK, CROWD_END,
 		PREPARE_FRAME, CROWD_LAYOUT, CROWD_COMPUTE, CROWD_UPLOAD, CROWD_DRAWS
 	}
 
@@ -48,6 +48,9 @@ public final class Timeline {
 			}
 			//#if MC >= 26.2
 			line.append(" states: ").append(LightStates.counts());
+			line.append(String.format(java.util.Locale.ROOT, " visible: short %d, long %d, untrusted %d", ParallelExtract.VISIBLE_CALLS[0],
+					ParallelExtract.VISIBLE_CALLS[1], ParallelExtract.VISIBLE_CALLS[2]));
+			java.util.Arrays.fill(ParallelExtract.VISIBLE_CALLS, 0);
 			//#endif
 			org.slf4j.LoggerFactory.getLogger("Polonium").info(line.toString());
 			java.util.Arrays.fill(TOTAL, 0);
