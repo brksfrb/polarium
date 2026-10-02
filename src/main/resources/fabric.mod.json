@@ -7,7 +7,8 @@
 	"authors": ["Arctic Launcher contributors"],
 	"contact": {
 		"homepage": "https://arcticlauncher.com",
-		"sources": "https://github.com/brksfrb/arctic-launcher"
+		"sources": "https://github.com/brksfrb/polonium",
+		"issues": "https://github.com/brksfrb/polonium/issues"
 	},
 	"license": "GPL-3.0-or-later",
 	"environment": "client",

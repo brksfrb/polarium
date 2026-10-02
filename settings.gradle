@@ -9,6 +9,6 @@ pluginManagement {
 	}
 }
 
-// Polonium, the entity rendering performance mod. Build from mod/:
-// ./gradlew -p polonium build -Pminecraft_version=26.2
+// Polonium, the entity rendering performance mod:
+// ./gradlew build -Pminecraft_version=26.2
 rootProject.name = 'polonium'

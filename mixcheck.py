@@ -1,9 +1,10 @@
-"""Check Polonium's mixin hooks against Minecraft versions, without starting the game (copied from the Arctic Client's checker).
+"""Check Polonium's mixin hooks against Minecraft versions, without starting the game.
 
 Usage (from anywhere, JDK on JAVA_HOME):
-    python mod/versions/fabric/mixcheck.py 1.21.4 1.19.4 ...
-Each version must have been compiled once (python mod/build.py <version>, or
-gradlew compileJava), so its preprocessed sources and Loom's named jar exist.
+    python mixcheck.py 26.2 26.1.2 ...
+Each version must have been compiled once (./gradlew compileJava
+-Pminecraft_version=<version>), so its preprocessed sources and Loom's named
+jar exist.
 
 Prints, per version, every hooked method, accessor, INVOKE target and
 @Shadow member that doesn't exist, and every INVOKE target the hooked method
