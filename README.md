@@ -55,7 +55,6 @@ No Fabric API needed.
 ## Compatibility
 
 - Works alongside Sodium, Lithium, EntityCulling, ImmediatelyFast and FerriteCore.
-.
 - With a shaders mod (Iris, Oculus) or a mod that changes entity models
   (Entity Model Features, Figura) installed, entity models stay on the game's
   renderer; the rest still applies.
