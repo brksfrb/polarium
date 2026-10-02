@@ -22,9 +22,22 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(ArmedEntityRenderState.class)
 abstract class ArmedStateKeptSlotsMixin implements KeptStates.Slots {
 	@Unique
-	private final Object[] polonium$sources = new Object[8];
+	private final Object[] polonium$sources = new Object[KeptStates.SLOTS];
 	@Unique
-	private final int[] polonium$ticks = new int[8];
+	private final int[] polonium$ticks = new int[KeptStates.SLOTS];
+	/** The attacking hand's item's swing animation, as last looked up (see {@link KeptStates#SWING}). */
+	@Unique
+	private Object polonium$swing;
+
+	@Override
+	public Object polonium$swing() {
+		return polonium$swing;
+	}
+
+	@Override
+	public void polonium$swing(Object swing) {
+		polonium$swing = swing;
+	}
 
 	@Override
 	public Object[] polonium$sources() {
@@ -58,6 +71,22 @@ abstract class ArmedStateKeptSlotsMixin implements KeptStates.Slots {
 			update.call(resolver, output, item, context, entity);
 			((KeptStates.Slots) state).polonium$itemsChanged();
 		}
+	}
+
+	@WrapOperation(method = "extractArmedEntityRenderState", at = @At(value = "INVOKE",
+			target = "Lnet/minecraft/world/item/ItemStack;getSwingAnimation()Lnet/minecraft/world/item/component/SwingAnimation;"))
+	private static net.minecraft.world.item.component.SwingAnimation polonium$keptSwing(ItemStack held,
+			Operation<net.minecraft.world.item.component.SwingAnimation> swing, @Local(argsOnly = true) LivingEntity entity,
+			@Local(argsOnly = true) ArmedEntityRenderState state) {
+		KeptStates.Slots kept = (KeptStates.Slots) state;
+		if (kept.polonium$swing() instanceof net.minecraft.world.item.component.SwingAnimation same
+				&& KeptStates.sameCopy(state, KeptStates.SWING, held, entity.tickCount)) {
+			return same;
+		}
+		net.minecraft.world.item.component.SwingAnimation looked = swing.call(held);
+		kept.polonium$swing(looked);
+		KeptStates.sameCopy(state, KeptStates.SWING, held, entity.tickCount);
+		return looked;
 	}
 
 	@WrapOperation(method = "extractArmedEntityRenderState",

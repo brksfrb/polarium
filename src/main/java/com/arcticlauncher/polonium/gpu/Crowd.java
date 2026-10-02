@@ -619,8 +619,13 @@ public final class Crowd {
 			return;
 		}
 		CrowdRecipe recipe = RECIPES.get(avatar.id);
-		boolean same = recipe != null && recipe.looksTheSame(avatar);
 		CrowdChecked checked = (CrowdChecked) avatar;
+		if (recipe != null && checked.polonium$checked() == recipe && com.arcticlauncher.polonium.LightStates.broughtUp()) {
+			// Only brought up to the frame: what the recipe was checked against is as it was.
+			checked.polonium$checked(recipe, CrowdFrame.frame + 1);
+			return;
+		}
+		boolean same = recipe != null && recipe.looksTheSame(avatar);
 		checked.polonium$checked(same ? recipe : null, CrowdFrame.frame + 1);
 		if (same) {
 			boolean live = false;

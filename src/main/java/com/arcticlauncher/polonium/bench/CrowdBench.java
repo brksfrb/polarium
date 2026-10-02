@@ -73,6 +73,8 @@ public final class CrowdBench implements ClientModInitializer {
 	private static final int WARMUP_SECONDS = 15;
 	/** Ground level of the default flat world. */
 	private static final int GROUND = -60;
+	/** -Dpolonium.bench.wall=true: a stone wall across part of the close look, to check name tags seen through walls. */
+	private static final boolean WALL = Boolean.getBoolean("polonium.bench.wall");
 	/** Bigger crowds stand closer, so all of them stay within entity tracking and drawing range. */
 	private static final double SPACING = COUNT > 1000 ? 1.0 : 1.5;
 	/** 34 blocks up for 1,000; a little higher for bigger crowds (but within range of the farthest). */
@@ -340,11 +342,20 @@ public final class CrowdBench implements ClientModInitializer {
 		net.minecraft.client.server.IntegratedServer server = mc.getSingleplayerServer();
 		server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
 				"tp " + player + " -6 " + (GROUND + 5) + " -6 -45 30"));
+		if (WALL) {
+			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+					"fill -3 " + GROUND + " -3 -3 " + (GROUND + 7) + " 8 minecraft:stone"));
+		}
 		TIMER.schedule(() -> run(() -> {
 			mc.player.setXRot(30);
 			mc.player.setYRot(-45);
 		}), 2, TimeUnit.SECONDS);
 		TIMER.schedule(() -> run(() -> screenshot(mc)), 5, TimeUnit.SECONDS);
+		if (WALL) {
+			// Frames apart, to catch anything that flickers.
+			TIMER.schedule(() -> run(() -> screenshot(mc)), 5100, TimeUnit.MILLISECONDS);
+			TIMER.schedule(() -> run(() -> screenshot(mc)), 5200, TimeUnit.MILLISECONDS);
+		}
 		TIMER.schedule(() -> run(mc::stop), 8, TimeUnit.SECONDS);
 	}
 

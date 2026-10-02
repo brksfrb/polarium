@@ -24,6 +24,9 @@ public final class KeptStates {
 	public static final int LEFT_COPY = 2;
 	public static final int RIGHT_COPY = 3;
 	public static final int ARMOR = 4;
+	/** The swing animation of the item in the attacking hand (a data component looked up every frame). */
+	public static final int SWING = 8;
+	public static final int SLOTS = 9;
 	/**
 	 * Copies of the items are made again this often, in ticks, even when the
 	 * player holds the same item object (in case it was changed in place:
@@ -40,6 +43,19 @@ public final class KeptStates {
 		EntityRenderer<?, ?> polonium$keptStateRenderer();
 
 		void polonium$keptState(EntityRenderState state, EntityRenderer<?, ?> renderer);
+
+		/** The tick its kept state was last made in full on (see LightStates), or -1. */
+		int polonium$fullTick();
+
+		/** Its attributes' version then (see AttributeValues#version). */
+		long polonium$fullAttributes();
+
+		void polonium$madeInFull(int tick, long attributes);
+
+		/** The server sent something about it since its state was last made in full (see LightStates). */
+		boolean polonium$touched();
+
+		void polonium$touched(boolean touched);
 	}
 
 	/** Room on a state for what each slot was made from, and on which tick (added to ArmedEntityRenderState by a mixin). */
@@ -52,6 +68,11 @@ public final class KeptStates {
 		int polonium$itemsVersion();
 
 		void polonium$itemsChanged();
+
+		/** The kept swing animation (see {@link #SWING}), or null. */
+		Object polonium$swing();
+
+		void polonium$swing(Object swing);
 	}
 
 	/** {@link #same} for a slot that holds a copy (made again every {@link #COPY_TICKS} ticks). */

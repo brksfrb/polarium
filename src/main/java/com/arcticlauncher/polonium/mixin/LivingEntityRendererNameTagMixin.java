@@ -16,7 +16,7 @@ abstract class LivingEntityRendererNameTagMixin {
 	@WrapMethod(method = "extractNameTags(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)V")
 	private void polonium$keptDistances(LivingEntity entity, LivingEntityRenderState state, float partialTicks, Operation<Void> extract) {
 		AttributeValues.Holder2 kept = (AttributeValues.Holder2) entity;
-		long version = AttributeValues.version();
+		long version = AttributeValues.version(entity);
 		if (kept.polonium$version() != version) {
 			// As the game reads them.
 			kept.polonium$nameDistances(entity.getAttribute(Attributes.NAME_TAG_DISTANCE).getValue(),

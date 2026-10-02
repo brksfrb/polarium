@@ -20,4 +20,14 @@ public interface LivingEntityRendererAccess {
 
 	@Accessor("layers")
 	List<RenderLayer<?, ?>> polonium$layers();
+
+	//#if MC >= 26.2
+	@Invoker("solveBodyRot")
+	static float polonium$solveBodyRot(net.minecraft.world.entity.LivingEntity entity, float headRot, float partialTicks) {
+		throw new AssertionError();
+	}
+
+	@Invoker("extractNameTags")
+	void polonium$extractLivingNameTags(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks);
+	//#endif
 }

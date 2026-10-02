@@ -65,7 +65,7 @@ abstract class LivingEntityAttributeValuesMixin implements AttributeValues.Holde
 
 	@WrapMethod(method = "getScale")
 	private float polonium$keptScale(Operation<Float> scale) {
-		long version = AttributeValues.version();
+		long version = AttributeValues.version((LivingEntity) (Object) this);
 		if (polonium$scaleVersion == version) {
 			return polonium$scale;
 		}

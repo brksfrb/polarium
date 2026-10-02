@@ -46,6 +46,9 @@ public final class Timeline {
 			for (Step step : Step.values()) {
 				line.append(String.format(java.util.Locale.ROOT, " %s %.2f;", step.name().toLowerCase(java.util.Locale.ROOT), TOTAL[step.ordinal()] / 1e6 / frames));
 			}
+			//#if MC >= 26.2
+			line.append(" states: ").append(LightStates.counts());
+			//#endif
 			org.slf4j.LoggerFactory.getLogger("Polonium").info(line.toString());
 			java.util.Arrays.fill(TOTAL, 0);
 			frames = 0;
