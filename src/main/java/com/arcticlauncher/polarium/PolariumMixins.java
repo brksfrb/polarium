@@ -24,6 +24,10 @@ public final class PolariumMixins implements IMixinConfigPlugin {
 
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+		if (mixinClassName.endsWith(".BenchTagsMixin") || mixinClassName.endsWith(".BenchFpsMixin")) {
+			// Only for the bench's showcase shots (name tags with the HUD hidden), with or without the rest.
+			return Boolean.getBoolean("polarium.bench.showcase");
+		}
 		if (mixinClassName.endsWith(".BenchSkinMixin")) {
 			// Only for the crowd bench's players (they have no player list entry to get a skin from).
 			return "players".equals(System.getProperty("polarium.bench.kind"));

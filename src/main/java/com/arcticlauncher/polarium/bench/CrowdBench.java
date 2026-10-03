@@ -284,6 +284,83 @@ public final class CrowdBench implements ClientModInitializer {
 		}
 	}
 
+	/**
+	 * -Dpolarium.bench.showcase=true: pictures for the mod's page instead of a
+	 * measurement: a 1600x900 window, no HUD or chat (name tags stay), late
+	 * afternoon, a few views of the crowd, each with its frame rate and the
+	 * crowd's size drawn in the corner (BenchFpsMixin) and logged.
+	 */
+	private static final boolean SHOWCASE = Boolean.getBoolean("polarium.bench.showcase");
+	private static volatile String showcaseLabel;
+
+	/** What the showcase draws under the frame rate, once it's set up (else null). */
+	public static @org.jspecify.annotations.Nullable String showcaseLabel() {
+		return showcaseLabel;
+	}
+
+	private static void showcase() {
+		Minecraft mc = Minecraft.getInstance();
+		mc.getWindow().setWindowed(1600, 900);
+		// No frame rate limit while no one touches the game (the default caps it after a while).
+		mc.options.inactivityFpsLimit().set(net.minecraft.client.InactivityFpsLimit.MINIMIZED);
+		if (!mc.gui.hud.isHidden()) {
+			mc.gui.hud.toggle();
+		}
+		mc.options.chatVisibility().set(net.minecraft.world.entity.player.ChatVisiblity.HIDDEN);
+		mc.options.fov().set(70);
+		boolean off = Boolean.getBoolean("polarium.off");
+		showcaseLabel = String.format(java.util.Locale.ROOT, "%,d players", COUNT) + (off ? " - without Polarium" : " - Polarium");
+		net.minecraft.client.server.IntegratedServer server = mc.getSingleplayerServer();
+		String name = mc.player.getGameProfile().name();
+		for (String command : List.of("time set 11000", "weather clear")) {
+			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), command));
+		}
+		mc.player.getAbilities().flying = true;
+		server.execute(() -> {
+			net.minecraft.server.level.ServerPlayer self = server.getPlayerList().getPlayers().get(0);
+			self.getAbilities().flying = true;
+			self.onUpdateAbilities();
+		});
+		int side = (int) Math.ceil(Math.sqrt(COUNT));
+		double half = (side - 1) * SPACING / 2;
+		// Views: from above a corner across the crowd, from its edge at eye level, and high over one side.
+		List<double[]> views = List.of(new double[] {-half - 6, GROUND + 14, -half - 6, -45, 28},
+				new double[] {-half - 1.5, GROUND, -half - 1.5, -45, 2}, new double[] {0, GROUND + 28, -half - 14, 0, 42});
+		showcaseView(views, 0, name, server);
+	}
+
+	private static void showcaseView(List<double[]> views, int index, String name, net.minecraft.client.server.IntegratedServer server) {
+		Minecraft mc = Minecraft.getInstance();
+		if (index >= views.size()) {
+			TIMER.schedule(() -> run(mc::stop), 1, TimeUnit.SECONDS);
+			return;
+		}
+		double[] v = views.get(index);
+		server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+				String.format(java.util.Locale.ROOT, "tp %s %.2f %.2f %.2f %.1f %.1f", name, v[0], v[1], v[2], v[3], v[4])));
+		TIMER.schedule(() -> run(() -> {
+			mc.player.setYRot((float) v[3]);
+			mc.player.setXRot((float) v[4]);
+		}), 1500, TimeUnit.MILLISECONDS);
+		// A few seconds to settle (chunks, frame rate counted over a second), then the shot.
+		TIMER.schedule(() -> run(() -> {
+			LOG.info("crowd bench: SHOWCASE view {} fps={}", index, mc.getFps());
+			// Straight to a file of its own (the game's screenshot key tells other mods, which show notices).
+			File dir = new File(mc.gameDirectory, "showcase");
+			dir.mkdirs();
+			String file = String.format(java.util.Locale.ROOT, "%d-%s-view%d.png", COUNT,
+					Boolean.getBoolean("polarium.off") ? "without" : "polarium", index);
+			net.minecraft.client.Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget(), image -> {
+				try (image) {
+					image.writeToFile(new File(dir, file));
+				} catch (IOException e) {
+					LOG.error("crowd bench: couldn't save {}", file, e);
+				}
+			});
+		}), 7, TimeUnit.SECONDS);
+		TIMER.schedule(() -> run(() -> showcaseView(views, index + 1, name, server)), 8, TimeUnit.SECONDS);
+	}
+
 	/** The mannequin's skin (one of {@link #SKINS}), as its profile's texture. */
 	private static String skin(int i) {
 		return SKINS > 1 ? "profile:{texture:\"polarium:bench/skin_" + (i % SKINS) + "\"}," : "";
@@ -339,7 +416,11 @@ public final class CrowdBench implements ClientModInitializer {
 					// The game's own profiler (F3+L): ten seconds of where frame time goes, in debug/profiling.
 					Minecraft.getInstance().debugClientMetricsStart(message -> LOG.info("crowd bench: profile {}", message.getString()));
 				}
-				measure(new ArrayList<>(), SECONDS);
+				if (SHOWCASE) {
+					showcase();
+				} else {
+					measure(new ArrayList<>(), SECONDS);
+				}
 			}), WARMUP_SECONDS, TimeUnit.SECONDS);
 		}
 	}
