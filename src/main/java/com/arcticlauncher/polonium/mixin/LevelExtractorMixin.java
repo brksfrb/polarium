@@ -87,6 +87,8 @@ abstract class LevelExtractorMixin {
 				// The game's camera rules: not the camera's own entity in first person (unless asleep), no other local player.
 				e -> (e != cameraEntity || detached || sleeping) && (!(e instanceof LocalPlayer) || cameraEntity == e),
 				e -> tickRateManager.isEntityFrozen(e) ? frozen : running, this::extractEntity, output.entityRenderStates);
+		// For the debug screen's entity count (the states land later; last frame's count).
+		output.lastEntityRenderStateCount = ParallelExtract.lastDrawn;
 		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_ENTITIES);
 		ci.cancel();
 	}

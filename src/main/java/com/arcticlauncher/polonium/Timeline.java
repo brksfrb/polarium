@@ -11,7 +11,7 @@ public final class Timeline {
 	public static final boolean REPORTS = ON || Boolean.getBoolean("polonium.debugReports");
 
 	public enum Step {
-		FRAME, RUN_TICK, RENDER_FRAME, GUI_UPDATE, LEVEL_UPDATE, CAMERA_UPDATE, PENDING_TASKS, RUN_TASKS, TICK, PICK, ACQUIRE, BLIT, SUBMIT, PRESENT, TICK_ENTITIES, PARALLEL_TICKS, EXTRACT, EXTRACT_ENTITIES, EXTRACT_JOIN, RENDER, SUBMIT_ENTITIES, CROWD_BULK, CROWD_END,
+		FRAME, RUN_TICK, RENDER_FRAME, GUI_UPDATE, LEVEL_UPDATE, CAMERA_UPDATE, PENDING_TASKS, RUN_TASKS, TICK, PICK, ACQUIRE, BLIT, SUBMIT, PRESENT, TICK_ENTITIES, PARALLEL_TICKS, EXTRACT, EXTRACT_ENTITIES, EXTRACT_JOIN, RENDER, BEFORE_ENTITIES, SUBMIT_ENTITIES, CROWD_BULK, CROWD_END,
 		PREPARE_FRAME, PREP_MODELS, PREP_ITEMS, PREP_TAGS, CROWD_LAYOUT, CROWD_COMPUTE, CROWD_UPLOAD, CROWD_DRAWS
 	}
 
@@ -56,6 +56,9 @@ public final class Timeline {
 			line.append(String.format(java.util.Locale.ROOT, " helpers (thread-ms per frame): extract jobs %.2f, visible %.2f, made %.2f;",
 					ParallelExtract.JOB_NANOS.sumThenReset() / 1e6 / frames, ParallelExtract.VISIBLE_NANOS.sumThenReset() / 1e6 / frames,
 					ParallelExtract.MADE_NANOS.sumThenReset() / 1e6 / frames));
+			long fullCount = ParallelExtract.FULL_COUNT.sumThenReset();
+			line.append(String.format(java.util.Locale.ROOT, " made in full: %.2f thread-ms per frame, %.1f us each;",
+					ParallelExtract.FULL_NANOS.sum() / 1e6 / frames, fullCount == 0 ? 0 : ParallelExtract.FULL_NANOS.sumThenReset() / 1e3 / fullCount));
 			//#endif
 			org.slf4j.LoggerFactory.getLogger("Polonium").info(line.toString());
 			java.util.Arrays.fill(TOTAL, 0);

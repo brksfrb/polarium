@@ -27,6 +27,11 @@ abstract class LevelRendererCrowdMixin {
 
 	@Inject(method = "submitEntities", at = @At("HEAD"))
 	private void polonium$beginCrowd(PoseStack poseStack, LevelRenderState levelRenderState, SubmitNodeCollector output, CallbackInfo ci) {
+		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.BEFORE_ENTITIES);
+		// The entity states made on the helpers are needed from here (see ParallelExtract#lateJoin).
+		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
+		com.arcticlauncher.polonium.ParallelExtract.finish();
+		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
 		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.SUBMIT_ENTITIES);
 		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.CROWD_BULK);
 		Crowd.beginFrame();

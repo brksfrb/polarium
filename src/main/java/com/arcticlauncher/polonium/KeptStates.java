@@ -52,6 +52,16 @@ public final class KeptStates {
 
 		void polonium$madeInFull(int tick, long attributes);
 
+		/** The tick its kept state was last found good for (made in full, or carried over: see LightStates), or -1. */
+		int polonium$keptTick();
+
+		void polonium$keptTick(int tick);
+
+		/** What its state was made from when it was last made in full (see TickInputs). */
+		long polonium$inputs();
+
+		void polonium$inputs(long inputs);
+
 		/** The server sent something about it since its state was last made in full (see LightStates). */
 		boolean polonium$touched();
 

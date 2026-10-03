@@ -24,10 +24,17 @@ abstract class EntityRendererLightMixin {
 				&& holder.polonium$keptStateRenderer() == self;
 		if (LightStates.light(self, entity, state, kept)) {
 			LightStates.bringUp(self, (Avatar) entity, (AvatarRenderState) state, partialTicks);
+			if (LightStates.CHECK_CARRY) {
+				LightStates.checkCarried(self, entity, state, partialTicks);
+			}
 			LightStates.made(true);
 			return;
 		}
 		LightStates.made(false);
+		if (kept) {
+			// As on a new state (the game makes one every frame): it only sets where the tag goes when it shows one.
+			state.nameTagAttachment = null;
+		}
 		extract.call(self, entity, state, partialTicks);
 		if (kept) {
 			LightStates.madeInFull(entity);

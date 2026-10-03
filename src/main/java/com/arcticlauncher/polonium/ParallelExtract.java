@@ -104,6 +104,9 @@ public final class ParallelExtract {
 	public static final java.util.concurrent.atomic.LongAdder JOB_NANOS = new java.util.concurrent.atomic.LongAdder();
 	public static final java.util.concurrent.atomic.LongAdder VISIBLE_NANOS = new java.util.concurrent.atomic.LongAdder();
 	public static final java.util.concurrent.atomic.LongAdder MADE_NANOS = new java.util.concurrent.atomic.LongAdder();
+	/** With the timeline: helper time in states made in full (not brought up), and how many. */
+	public static final java.util.concurrent.atomic.LongAdder FULL_NANOS = new java.util.concurrent.atomic.LongAdder();
+	public static final java.util.concurrent.atomic.LongAdder FULL_COUNT = new java.util.concurrent.atomic.LongAdder();
 
 	/** The game's own per-entity extraction (with whatever other mods add to it). */
 	public interface Extractor {
@@ -111,6 +114,18 @@ public final class ParallelExtract {
 	}
 
 	private ParallelExtract() {}
+
+	/**
+	 * Whether the helpers' states are waited for only where the game first
+	 * reads them (LevelRenderer.submitEntities), so the render thread sets
+	 * up the rest of the frame meanwhile. Not with a shaders mod: its shadow
+	 * pass reads them before. Off with -Dpolonium.lateJoin=false.
+	 */
+	private static final boolean LATE_JOIN = !"false".equals(System.getProperty("polonium.lateJoin")) && !loaded("iris", "oculus");
+
+	public static boolean lateJoin() {
+		return LATE_JOIN;
+	}
 
 	public static boolean enabled() {
 		return enabled;
@@ -187,7 +202,14 @@ public final class ParallelExtract {
 						if (visible) {
 							states[i] = made(entity, partial, extractor);
 							if (timed) {
-								tMade += System.nanoTime() - b;
+								long took = System.nanoTime() - b;
+								tMade += took;
+								//#if MC >= 26.2
+								if (!LightStates.broughtUp()) {
+									FULL_NANOS.add(took);
+									FULL_COUNT.increment();
+								}
+								//#endif
 							}
 							//#if MC >= 26.2
 							com.arcticlauncher.polonium.gpu.Crowd.precheck(states[i], dispatcher);

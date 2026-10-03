@@ -19,20 +19,27 @@ abstract class GameRendererExtractMixin {
 
 	@Inject(method = "extract", at = @At("TAIL"))
 	private void polonium$entitiesIn(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
-		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
-		ParallelExtract.finish();
-		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
+		if (!ParallelExtract.lateJoin()) {
+			com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
+			ParallelExtract.finish();
+			com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT_JOIN);
+		}
 		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.EXTRACT);
 	}
 
 	@Inject(method = "render", at = @At("HEAD"))
 	private void polonium$entitiesInBeforeDrawing(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
-		ParallelExtract.finish();
+		if (!ParallelExtract.lateJoin()) {
+			ParallelExtract.finish();
+		}
 		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.RENDER);
+		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.BEFORE_ENTITIES);
 	}
 
 	@Inject(method = "render", at = @At("TAIL"))
 	private void polonium$frameDrawn(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
+		// The level's entity states in, whatever happened (no level drawn this frame, say).
+		ParallelExtract.finish();
 		com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.RENDER);
 		com.arcticlauncher.polonium.Timeline.frame();
 	}

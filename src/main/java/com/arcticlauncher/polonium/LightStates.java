@@ -72,8 +72,8 @@ public final class LightStates {
 	private static volatile Boolean on;
 	private static List<BiConsumer<Object, Object>> hooks = List.of();
 	/** With -Dpolonium.debugTimeline: why states were made in full or brought up (logged with the timeline). */
-	private static final java.util.concurrent.atomic.AtomicLongArray WHY = new java.util.concurrent.atomic.AtomicLongArray(5);
-	private static final String[] WHY_NAMES = {"brought up", "ticked", "packet", "attributes", "riding or leashed"};
+	private static final java.util.concurrent.atomic.AtomicLongArray WHY = new java.util.concurrent.atomic.AtomicLongArray(6);
+	private static final String[] WHY_NAMES = {"brought up", "ticked", "packet", "attributes", "riding or leashed", "carried over a tick"};
 
 	/** Per thread: whether the state it made last was brought up (not made in full). */
 	private static final ThreadLocal<boolean[]> BROUGHT_UP = ThreadLocal.withInitial(() -> new boolean[1]);
@@ -179,21 +179,117 @@ public final class LightStates {
 				|| !(entity instanceof KeptStates.Holder holder) || !(state instanceof AvatarRenderState) || !on()) {
 			return false;
 		}
-		int why = holder.polonium$fullTick() != entity.tickCount ? 1 : holder.polonium$touched() ? 2
+		int why = holder.polonium$touched() ? 2
 				: holder.polonium$fullAttributes() != AttributeValues.version(avatar) ? 3
 				: entity.isPassenger() || entity.isVehicle() || entity instanceof net.minecraft.world.entity.Leashable leashable
-						&& leashable.isLeashed() ? 4 : 0;
+						&& leashable.isLeashed() ? 4
+				: holder.polonium$keptTick() == entity.tickCount ? 0
+				: carriesOver(avatar, holder) ? 5 : 1;
 		if (Timeline.ON) {
 			WHY.incrementAndGet(why);
 		}
-		return why == 0;
+		return why == 0 || why == 5;
 	}
 
 	/** The state was just made in full. */
 	public static void madeInFull(Entity entity) {
 		if (entity instanceof KeptStates.Holder holder && entity instanceof LivingEntity living) {
 			holder.polonium$madeInFull(entity.tickCount, AttributeValues.version(living));
+			holder.polonium$inputs(CARRY_OVER && entity instanceof Avatar avatar ? TickInputs.of(avatar) : TickInputs.NEVER);
+			if (TickInputs.DEBUG && entity instanceof Avatar avatar) {
+				TickInputs.debug(avatar, true);
+			}
 		}
+	}
+
+	/** Off with -Dpolonium.carryOver=false: a state is made in full on every tick of its player. */
+	private static final boolean CARRY_OVER = !"false".equals(System.getProperty("polonium.carryOver"));
+
+	/**
+	 * On a new tick of its player: whether its kept state carries over (see
+	 * TickInputs), nothing it's made from but what's brought up every frame
+	 * having changed. Made in full anyway every {@link KeptStates#COPY_TICKS}
+	 * ticks (as its items' copies are). Notes the tick if so.
+	 */
+	private static boolean carriesOver(Avatar avatar, KeptStates.Holder holder) {
+		long inputs = holder.polonium$inputs();
+		if (!CARRY_OVER || inputs == TickInputs.NEVER || avatar.tickCount - holder.polonium$fullTick() >= KeptStates.COPY_TICKS
+				|| avatar.tickCount < holder.polonium$fullTick() || TickInputs.of(avatar) != inputs) {
+			if (TickInputs.DEBUG && inputs != TickInputs.NEVER) {
+				TickInputs.debug(avatar, false);
+			}
+			return false;
+		}
+		holder.polonium$keptTick(avatar.tickCount);
+		if (CHECK_CARRY) {
+			CARRIED.set(true);
+		}
+		return true;
+	}
+
+	/** -Dpolonium.checkCarry=true: each carried-over state checked, field by field, against one made in full (logged every 10 s). */
+	public static final boolean CHECK_CARRY = Boolean.getBoolean("polonium.checkCarry");
+	private static final ThreadLocal<Boolean> CARRIED = ThreadLocal.withInitial(() -> false);
+	private static final java.util.concurrent.ConcurrentHashMap<String, Long> CARRY_DIFFERENT = new java.util.concurrent.ConcurrentHashMap<>();
+	private static final java.util.concurrent.atomic.AtomicLong CARRY_CHECKED = new java.util.concurrent.atomic.AtomicLong();
+	private static volatile long carryReported = System.nanoTime();
+
+	/** After bringing a state up: if it was carried over a tick (and checking), compared with one made in full. */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public static void checkCarried(EntityRenderer<?, ?> renderer, Entity entity, EntityRenderState kept, float partialTicks) {
+		if (!CARRIED.get()) {
+			return;
+		}
+		CARRIED.set(false);
+		EntityRenderState fresh = ((EntityRenderer) renderer).createRenderState();
+		((EntityRenderer) renderer).extractRenderState(entity, fresh, partialTicks);
+		for (Class<?> c = kept.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+			for (java.lang.reflect.Field field : c.getDeclaredFields()) {
+				if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) || field.getName().contains("$")) {
+					continue;
+				}
+				try {
+					field.setAccessible(true);
+					if (!sameValue(field.get(kept), field.get(fresh))) {
+						CARRY_DIFFERENT.merge(c.getSimpleName() + "." + field.getName(), 1L, Long::sum);
+					}
+				} catch (ReflectiveOperationException | RuntimeException e) {
+					CARRY_DIFFERENT.merge(c.getSimpleName() + "." + field.getName() + " (unreadable)", 1L, Long::sum);
+				}
+			}
+		}
+		CARRY_CHECKED.incrementAndGet();
+		long now = System.nanoTime();
+		if (now - carryReported > 10_000_000_000L) {
+			carryReported = now;
+			LOG.info("Polonium carry check: {} states, different: {}", CARRY_CHECKED.getAndSet(0), new java.util.TreeMap<>(CARRY_DIFFERENT));
+			CARRY_DIFFERENT.clear();
+		}
+	}
+
+	private static boolean sameValue(Object a, Object b) {
+		if (a == b) {
+			return true;
+		}
+		if (a == null || b == null) {
+			return false;
+		}
+		if (a instanceof Float x && b instanceof Float y) {
+			return Float.floatToIntBits(x) == Float.floatToIntBits(y);
+		}
+		if (a instanceof net.minecraft.world.item.ItemStack x && b instanceof net.minecraft.world.item.ItemStack y) {
+			return net.minecraft.world.item.ItemStack.matches(x, y);
+		}
+		if (a instanceof net.minecraft.client.renderer.item.ItemStackRenderState x && b instanceof net.minecraft.client.renderer.item.ItemStackRenderState y) {
+			return x.isEmpty() == y.isEmpty() && x.isAnimated() == y.isAnimated() && x.usesBlockLight() == y.usesBlockLight();
+		}
+		if (a instanceof net.minecraft.network.chat.Component x && b instanceof net.minecraft.network.chat.Component y) {
+			return x.getString().equals(y.getString());
+		}
+		if (a instanceof java.util.Collection<?> x && b instanceof java.util.Collection<?> y) {
+			return x.size() == y.size();
+		}
+		return a.equals(b);
 	}
 
 	/**
@@ -208,6 +304,8 @@ public final class LightStates {
 		state.y = Mth.lerp(partialTicks, entity.yOld, entity.getY());
 		state.z = Mth.lerp(partialTicks, entity.zOld, entity.getZ());
 		state.ageInTicks = entity.tickCount + partialTicks;
+		// As on a new state: the game only sets where the tag goes when it shows one.
+		state.nameTagAttachment = null;
 		((LivingEntityRendererAccess) renderer).polonium$extractLivingNameTags(entity, state, partialTicks);
 		boolean appearsGlowing = Minecraft.getInstance().shouldEntityAppearGlowing(entity);
 		state.outlineColor = appearsGlowing ? ARGB.opaque(entity.getTeamColor()) : 0;

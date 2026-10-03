@@ -20,6 +20,30 @@ abstract class EntityKeptStateMixin implements KeptStates.Holder {
 	private long polonium$fullAttributes;
 	@Unique
 	private boolean polonium$touched;
+	@Unique
+	private int polonium$keptTick = -1;
+	@Unique
+	private long polonium$inputs = Long.MIN_VALUE;
+
+	@Override
+	public int polonium$keptTick() {
+		return polonium$keptTick;
+	}
+
+	@Override
+	public void polonium$keptTick(int tick) {
+		polonium$keptTick = tick;
+	}
+
+	@Override
+	public long polonium$inputs() {
+		return polonium$inputs;
+	}
+
+	@Override
+	public void polonium$inputs(long inputs) {
+		polonium$inputs = inputs;
+	}
 
 	@Override
 	public int polonium$fullTick() {
@@ -34,6 +58,7 @@ abstract class EntityKeptStateMixin implements KeptStates.Holder {
 	@Override
 	public void polonium$madeInFull(int tick, long attributes) {
 		polonium$fullTick = tick;
+		polonium$keptTick = tick;
 		polonium$fullAttributes = attributes;
 		polonium$touched = false;
 	}

@@ -39,6 +39,8 @@
 		"ByClassLookupMixin",
 		"LivingEntityRendererAccess",
 		"PlayerModelAccess",
+		"CompositeModelAccess",
+		"SelectItemModelAccess",
 		"ItemInHandLayerMixin",
 		"LevelRendererCrowdMixin",
 		"ItemStackRenderStateAccess",
