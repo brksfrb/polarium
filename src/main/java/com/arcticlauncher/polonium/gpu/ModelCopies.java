@@ -44,8 +44,8 @@ final class ModelCopies {
 	private static final Map<Class<?>, Boolean> COPYABLE = new ConcurrentHashMap<>();
 	private static final Map<Class<?>, List<Field>> FIELDS = new ConcurrentHashMap<>();
 	private static final @Nullable Unsafe UNSAFE = unsafe();
-	/** Each thread's copies, by original model (held weakly: models are replaced on resource reloads). */
-	private static final ThreadLocal<Map<Model<?>, Copy>> COPIES = ThreadLocal.withInitial(java.util.WeakHashMap::new);
+	/** Each thread's copies, by original model. */
+	private static final ThreadLocal<Mine> COPIES = ThreadLocal.withInitial(Mine::new);
 
 	private ModelCopies() {}
 
@@ -88,13 +88,42 @@ final class ModelCopies {
 
 	/** This thread's copy of {@code model} ({@code meshParts}: the original's parts in mesh order). */
 	static Copy forThisThread(Model<?> model, ModelPart[] meshParts) {
-		Map<Model<?>, Copy> copies = COPIES.get();
-		Copy copy = copies.get(model);
-		if (copy == null) {
-			copy = copy(model, meshParts);
-			copies.put(model, copy);
+		return COPIES.get().copy(model, meshParts);
+	}
+
+	/** This thread's copies: fetched once by a caller that looks up many (a thread-local lookup per model is costly). */
+	static Mine mine() {
+		return COPIES.get();
+	}
+
+	/**
+	 * One thread's copies. The few models a crowd is posed with are found in
+	 * a short list of the last ones used; the rest in a map held weakly
+	 * (models are replaced on resource reloads).
+	 */
+	static final class Mine {
+		private static final int RECENT = 16;
+		private final Map<Model<?>, Copy> all = new java.util.WeakHashMap<>();
+		private final Model<?>[] recentModels = new Model<?>[RECENT];
+		private final Copy[] recentCopies = new Copy[RECENT];
+		private int next;
+
+		Copy copy(Model<?> model, ModelPart[] meshParts) {
+			for (int i = 0; i < RECENT; i++) {
+				if (recentModels[i] == model) {
+					return recentCopies[i];
+				}
+			}
+			Copy copy = all.get(model);
+			if (copy == null) {
+				copy = ModelCopies.copy(model, meshParts);
+				all.put(model, copy);
+			}
+			recentModels[next] = model;
+			recentCopies[next] = copy;
+			next = (next + 1) % RECENT;
+			return copy;
 		}
-		return copy;
 	}
 
 	private static Copy copy(Model<?> original, ModelPart[] meshParts) {
@@ -134,6 +163,9 @@ final class ModelCopies {
 			}
 			return out;
 		}
+		if (value != null && !(value instanceof Function<?, ?>) && plainData(value.getClass(), 0)) {
+			return copyData(value);
+		}
 		return value;
 	}
 
@@ -168,12 +200,77 @@ final class ModelCopies {
 		});
 	}
 
-	/** Only parts, lists of parts, maps to parts, plain values, strings, enums and functions. */
+	private static final Map<Class<?>, Boolean> PLAIN = new ConcurrentHashMap<>();
+	private static final int PLAIN_DEPTH = 4;
+
+	/** Values shared as they are: they can't change. */
+	private static boolean immutable(Class<?> type) {
+		return type.isPrimitive() || type == String.class || type.isEnum() || type == Float.class || type == Double.class
+				|| type == Integer.class || type == Long.class || type == Short.class || type == Byte.class || type == Boolean.class
+				|| type == Character.class;
+	}
+
+	/**
+	 * A small value object: only immutable values, primitive arrays and other
+	 * such objects (other mods add some to models, as scratch space while
+	 * posing: Player Animation Library's bones, say, a name and three
+	 * vectors). Each copy of the model gets its own.
+	 */
+	private static boolean plainData(Class<?> type, int depth) {
+		if (immutable(type)) {
+			return true;
+		}
+		if (type.isArray()) {
+			return type.getComponentType().isPrimitive();
+		}
+		if (depth > PLAIN_DEPTH || type.isInterface() || Modifier.isAbstract(type.getModifiers()) || type == Object.class
+				|| ModelPart.class.isAssignableFrom(type) || Model.class.isAssignableFrom(type)) {
+			return false;
+		}
+		Boolean known = PLAIN.get(type);
+		if (known != null) {
+			return known;
+		}
+		boolean plain = true;
+		for (Field field : fields(type)) {
+			if (!plainData(field.getType(), depth + 1)) {
+				plain = false;
+				break;
+			}
+		}
+		PLAIN.put(type, plain);
+		return plain;
+	}
+
+	/** A value object's own copy (see {@link #plainData}). */
+	private static Object copyData(Object value) throws ReflectiveOperationException {
+		Class<?> type = value.getClass();
+		if (immutable(type)) {
+			return value;
+		}
+		if (type.isArray()) {
+			int length = java.lang.reflect.Array.getLength(value);
+			Object out = java.lang.reflect.Array.newInstance(type.getComponentType(), length);
+			System.arraycopy(value, 0, out, 0, length);
+			return out;
+		}
+		if (!plainData(type, 0)) {
+			throw new IllegalStateException(type.getName() + " isn't a plain value object");
+		}
+		Object copy = UNSAFE.allocateInstance(type);
+		for (Field field : fields(type)) {
+			Object v = field.get(value);
+			field.set(copy, v == null ? null : copyData(v));
+		}
+		return copy;
+	}
+
+	/** Only parts, lists of parts, maps to parts, plain values and value objects, strings, enums and functions. */
 	private static boolean check(Class<?> type) {
 		try {
 			for (Field field : fields(type)) {
 				Class<?> t = field.getType();
-				boolean plain = t.isPrimitive() || t == String.class || t.isEnum() || t == ModelPart.class || t == Function.class
+				boolean plain = t.isPrimitive() || t == String.class || t.isEnum() || t == ModelPart.class || t == Function.class || plainData(t, 0)
 						|| (t == List.class && partsOrUndeclared(typeArgument(field, 0)))
 						|| (t == Map.class && partsOrUndeclared(typeArgument(field, 1)));
 				if (!plain) {

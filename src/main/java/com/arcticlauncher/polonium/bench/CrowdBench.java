@@ -75,6 +75,8 @@ public final class CrowdBench implements ClientModInitializer {
 	private static final int GROUND = -60;
 	/** -Dpolonium.bench.wall=true: a stone wall across part of the close look, to check name tags seen through walls. */
 	private static final boolean WALL = Boolean.getBoolean("polonium.bench.wall");
+	/** With the wall: how many screenshots in a row (40 ms apart). */
+	private static final int FLICKER_SHOTS = Integer.getInteger("polonium.bench.shots", 2);
 	/** Bigger crowds stand closer, so all of them stay within entity tracking and drawing range. */
 	private static final double SPACING = COUNT > 1000 ? 1.0 : 1.5;
 	/** 34 blocks up for 1,000; a little higher for bigger crowds (but within range of the farthest). */
@@ -208,21 +210,37 @@ public final class CrowdBench implements ClientModInitializer {
 	private static final boolean ACTIVE = Boolean.getBoolean("polonium.bench.active");
 	private static int[] steps;
 
+	/** Set for the close look: the crowd stands still, so frames can be compared (to catch flicker). */
+	private static volatile boolean frozen;
+
+	private static boolean settled;
+
 	private static void walk() {
-		walkTick++;
 		if (steps == null) {
 			steps = new int[PLAYER_CROWD.size()];
+		}
+		if (frozen) {
+			if (settled) {
+				return;
+			}
+			// Everyone to the same place every run (so runs can be compared), then still.
+			settled = true;
+			java.util.Arrays.fill(steps, 0);
+		} else {
+			walkTick++;
 		}
 		for (int i = 0; i < PLAYER_CROWD.size(); i++) {
 			net.minecraft.client.player.RemotePlayer player = PLAYER_CROWD.get(i);
 			if (player.isRemoved()) {
 				continue;
 			}
-			int roll = UNEVEN ? RANDOM.nextInt(4) : 1;
-			if (roll == 0) {
-				continue;
+			if (!frozen) {
+				int roll = UNEVEN ? RANDOM.nextInt(4) : 1;
+				if (roll == 0) {
+					continue;
+				}
+				steps[i] += roll == 3 ? 2 : 1;
 			}
-			steps[i] += roll == 3 ? 2 : 1;
 			int side = (int) Math.ceil(Math.sqrt(COUNT));
 			double offset = (side - 1) * SPACING / 2;
 			double angle = steps[i] * WALK_STEP + i;
@@ -343,6 +361,15 @@ public final class CrowdBench implements ClientModInitializer {
 		server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
 				"tp " + player + " -6 " + (GROUND + 5) + " -6 -45 30"));
 		if (WALL) {
+			frozen = true;
+			// Hovering where it's put (not dropping into the crowd), and no chat over the shots.
+			mc.player.getAbilities().flying = true;
+			server.execute(() -> {
+				net.minecraft.server.level.ServerPlayer self = server.getPlayerList().getPlayers().get(0);
+				self.getAbilities().flying = true;
+				self.onUpdateAbilities();
+			});
+			mc.options.chatVisibility().set(net.minecraft.world.entity.player.ChatVisiblity.HIDDEN);
 			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
 					"fill -3 " + GROUND + " -3 -3 " + (GROUND + 7) + " 8 minecraft:stone"));
 		}
@@ -352,11 +379,12 @@ public final class CrowdBench implements ClientModInitializer {
 		}), 2, TimeUnit.SECONDS);
 		TIMER.schedule(() -> run(() -> screenshot(mc)), 5, TimeUnit.SECONDS);
 		if (WALL) {
-			// Frames apart, to catch anything that flickers.
-			TIMER.schedule(() -> run(() -> screenshot(mc)), 5100, TimeUnit.MILLISECONDS);
-			TIMER.schedule(() -> run(() -> screenshot(mc)), 5200, TimeUnit.MILLISECONDS);
+			// A run of frames, to catch anything that flickers.
+			for (int i = 1; i <= FLICKER_SHOTS; i++) {
+				TIMER.schedule(() -> run(() -> screenshot(mc)), 5000 + i * 40L, TimeUnit.MILLISECONDS);
+			}
 		}
-		TIMER.schedule(() -> run(mc::stop), 8, TimeUnit.SECONDS);
+		TIMER.schedule(() -> run(mc::stop), 8 + FLICKER_SHOTS * 40 / 1000, TimeUnit.SECONDS);
 	}
 
 	// ---- What differs between Minecraft versions ----

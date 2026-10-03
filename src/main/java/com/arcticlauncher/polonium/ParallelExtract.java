@@ -30,8 +30,13 @@ public final class ParallelExtract {
 	/** Below this many visible entities, threads aren't worth waking. */
 	private static final int PARALLEL_MIN = 48;
 	private static final Map<Class<?>, Boolean> TRUSTED = new ConcurrentHashMap<>();
+	/**
+	 * Entity Model Features and Figura keep what they work out for an entity
+	 * in shared places while making its state. Entity Texture Features alone
+	 * only notes which entity a state is of (checked: 7.2), safe on any thread.
+	 */
 	private static volatile boolean enabled = !"false".equals(System.getProperty("polonium.parallelExtract"))
-			&& !loaded("entity_texture_features", "entity_model_features", "figura");
+			&& !loaded("entity_model_features", "figura");
 	private static boolean announced;
 	/** How many entities the last frame drew (for the benchmark). */
 	public static volatile int lastDrawn;
@@ -95,6 +100,10 @@ public final class ParallelExtract {
 
 	/** With -Dpolonium.debugTimeline: visibility tests of short lists, of long lists, and of untrusted entities one by one. */
 	public static final long[] VISIBLE_CALLS = new long[3];
+	/** With the timeline: helper time in the level's extraction jobs, and in their visibility tests and state making. */
+	public static final java.util.concurrent.atomic.LongAdder JOB_NANOS = new java.util.concurrent.atomic.LongAdder();
+	public static final java.util.concurrent.atomic.LongAdder VISIBLE_NANOS = new java.util.concurrent.atomic.LongAdder();
+	public static final java.util.concurrent.atomic.LongAdder MADE_NANOS = new java.util.concurrent.atomic.LongAdder();
 
 	/** The game's own per-entity extraction (with whatever other mods add to it). */
 	public interface Extractor {
@@ -161,16 +170,34 @@ public final class ParallelExtract {
 			jobs.add(() -> {
 				KeptStates.inLevel(true);
 				try {
+					boolean timed = Timeline.ON;
+					long t0 = timed ? System.nanoTime() : 0;
+					long tVisible = 0;
+					long tMade = 0;
 					for (int i = from; i < to; i++) {
 						Entity entity = entities.get(i);
 						if (!trusted(dispatcher.getRenderer(entity))) {
 							untrusted[i] = true;
-						} else if (test.visible(entity) && shown.shown(entity)) {
+							continue;
+						}
+						long a = timed ? System.nanoTime() : 0;
+						boolean visible = test.visible(entity) && shown.shown(entity);
+						long b = timed ? System.nanoTime() : 0;
+						tVisible += b - a;
+						if (visible) {
 							states[i] = made(entity, partial, extractor);
+							if (timed) {
+								tMade += System.nanoTime() - b;
+							}
 							//#if MC >= 26.2
 							com.arcticlauncher.polonium.gpu.Crowd.precheck(states[i]);
 							//#endif
 						}
+					}
+					if (timed) {
+						JOB_NANOS.add(System.nanoTime() - t0);
+						VISIBLE_NANOS.add(tVisible);
+						MADE_NANOS.add(tMade);
 					}
 				} finally {
 					KeptStates.inLevel(false);
@@ -212,6 +239,9 @@ public final class ParallelExtract {
 			for (int i = 0; i < untrusted.length; i++) {
 				if (untrusted[i]) {
 					Entity entity = work.entities.get(i);
+					if (Timeline.ON) {
+						VISIBLE_CALLS[2]++;
+					}
 					if (work.test.visible(entity) && work.shown.shown(entity)) {
 						work.states[i] = made(entity, work.partial, work.extractor);
 					}

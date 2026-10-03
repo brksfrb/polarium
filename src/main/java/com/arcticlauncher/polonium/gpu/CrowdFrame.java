@@ -197,6 +197,8 @@ final class CrowdFrame {
 		final PoseStack hand = new PoseStack();
 		final List<Matrix4f> stack = new ArrayList<>();
 		float[] parts = new float[PartPoses.VALUES_PER_PART * 64];
+		/** This thread's model copies (made on the thread the scratch is for). */
+		final ModelCopies.Mine copies = ModelCopies.mine();
 	}
 
 	private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(Scratch::new);
@@ -557,7 +559,7 @@ final class CrowdFrame {
 					continue;
 				} else if (memberEntry[m] instanceof CrowdRecipe.ModelEntry entry) {
 					ModelMesh mesh = targetMesh[t];
-					ModelCopies.Copy copy = ModelCopies.forThisThread(entry.model, mesh.parts);
+					ModelCopies.Copy copy = scratch.copies.copy(entry.model, mesh.parts);
 					((Model) copy.model).setupAnim(state);
 					if (scratch.parts.length < copy.parts.length * PartPoses.VALUES_PER_PART) {
 						scratch.parts = new float[copy.parts.length * PartPoses.VALUES_PER_PART];

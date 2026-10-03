@@ -54,6 +54,9 @@ public final class LightStates {
 			"ferritecore", "modernfix",
 			// tr7zw's library (with EntityCulling): notes which entity a state is of, the same for a kept state.
 			"transition",
+			// Entity Texture Features: notes which entity a state is of (a kept state's stays right), and may make a
+			// state full bright for emissive textures in getPackedLightCoords (which bringing up calls too).
+			"entity_texture_features",
 			// Bridges MixinExtras generates for other hooks (themselves checked by their own names).
 			"bridge");
 	/** The renderer classes whose extraction a light frame skips. */

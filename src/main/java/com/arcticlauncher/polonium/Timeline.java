@@ -51,6 +51,9 @@ public final class Timeline {
 			line.append(String.format(java.util.Locale.ROOT, " visible: short %d, long %d, untrusted %d", ParallelExtract.VISIBLE_CALLS[0],
 					ParallelExtract.VISIBLE_CALLS[1], ParallelExtract.VISIBLE_CALLS[2]));
 			java.util.Arrays.fill(ParallelExtract.VISIBLE_CALLS, 0);
+			line.append(String.format(java.util.Locale.ROOT, " helpers (thread-ms per frame): extract jobs %.2f, visible %.2f, made %.2f;",
+					ParallelExtract.JOB_NANOS.sumThenReset() / 1e6 / frames, ParallelExtract.VISIBLE_NANOS.sumThenReset() / 1e6 / frames,
+					ParallelExtract.MADE_NANOS.sumThenReset() / 1e6 / frames));
 			//#endif
 			org.slf4j.LoggerFactory.getLogger("Polonium").info(line.toString());
 			java.util.Arrays.fill(TOTAL, 0);
