@@ -154,37 +154,42 @@ public final class GpuEntities {
 	 * each bucket's atlas cell is found once a frame.
 	 */
 	private void addCrowd(Crowd.Bucket group) {
-		if (GpuBatches.modelMod() || !batches.preparing()) {
-			return;
-		}
+		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.PREP_MODELS);
 		try {
-			ModelMesh mesh = group.owner == null ? crowdMesh(group.model) : borrowedMesh(group);
-			if (group.renderType.hasBlending()) {
-				CrowdFrame.sortFarToNear(group.members);
-			}
-			long frame = batches.frame();
-			int count = group.members.size();
-			int[] members = group.members.elements();
-			if (count >= BULK_MIN && group.atlasTexture != null && group.batchOwner == group && SkinAtlas.ENABLED) {
-				addCrowdInAtlas(group, mesh, members, count, frame);
+			if (GpuBatches.modelMod() || !batches.preparing()) {
 				return;
 			}
-			if (count >= BULK_MIN && group.atlasTexture == null && group.batchOwner == group && allOwn(group, members, count)) {
-				addCrowdOwnTexture(group, mesh, members, count, frame);
-				return;
-			}
-			for (int i = 0; i < count; i++) {
-				int member = members[i];
-				Crowd.Bucket bucket = CrowdFrame.memberBucket(member);
-				if (bucket.cellFrame != frame) {
-					place(bucket, frame);
+			try {
+				ModelMesh mesh = group.owner == null ? crowdMesh(group.model) : borrowedMesh(group);
+				if (group.renderType.hasBlending()) {
+					CrowdFrame.sortFarToNear(group.members);
 				}
-				RenderType renderType = bucket.cell >= 0 ? bucket.batchOwner.renderType : bucket.renderType;
-				InstanceData data = batches.add(renderType, mesh, bucket.cellView);
-				CrowdFrame.target(member, data, data.reserve(mesh.texelsPerInstance), mesh, bucket.uv);
+				long frame = batches.frame();
+				int count = group.members.size();
+				int[] members = group.members.elements();
+				if (count >= BULK_MIN && group.atlasTexture != null && group.batchOwner == group && SkinAtlas.ENABLED) {
+					addCrowdInAtlas(group, mesh, members, count, frame);
+					return;
+				}
+				if (count >= BULK_MIN && group.atlasTexture == null && group.batchOwner == group && allOwn(group, members, count)) {
+					addCrowdOwnTexture(group, mesh, members, count, frame);
+					return;
+				}
+				for (int i = 0; i < count; i++) {
+					int member = members[i];
+					Crowd.Bucket bucket = CrowdFrame.memberBucket(member);
+					if (bucket.cellFrame != frame) {
+						place(bucket, frame);
+					}
+					RenderType renderType = bucket.cell >= 0 ? bucket.batchOwner.renderType : bucket.renderType;
+					InstanceData data = batches.add(renderType, mesh, bucket.cellView);
+					CrowdFrame.target(member, data, data.reserve(mesh.texelsPerInstance), mesh, bucket.uv);
+				}
+			} catch (RuntimeException | LinkageError e) {
+				GpuBatches.disable("couldn't take a crowd onto the GPU", e);
 			}
-		} catch (RuntimeException | LinkageError e) {
-			GpuBatches.disable("couldn't take a crowd onto the GPU", e);
+			} finally {
+			com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.PREP_MODELS);
 		}
 	}
 

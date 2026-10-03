@@ -368,40 +368,45 @@ public final class CrowdTags {
 	private static int @org.jspecify.annotations.Nullable [] lastSeeThroughOrder;
 
 	public static void draw(Component marker, GpuText gpu, Font font) {
-		Tags tags = marker == NORMAL ? normal : seeThrough;
-		Font.DisplayMode mode = marker == NORMAL ? Font.DisplayMode.NORMAL : Font.DisplayMode.SEE_THROUGH;
-		int[] order = new int[tags.count];
-		for (int i = 0; i < order.length; i++) {
-			order[i] = i;
-		}
-		if (mode == Font.DisplayMode.SEE_THROUGH) {
-			CrowdFrame.sortFarToNear(order, order.length, tags.distance, lastSeeThroughOrder, lastSeeThroughOrder == null ? 0
-					: lastSeeThroughOrder.length);
-			lastSeeThroughOrder = order;
-		}
-		int count = order.length;
-		GlyphRuns.Run[][] runs = new GlyphRuns.Run[count][];
-		// Kept runs, on the helper threads (most tags, every frame after their first).
-		int parts = count < 256 ? 1 : com.arcticlauncher.polonium.Workers.PARTS;
-		if (parts == 1) {
-			keptRuns(tags, order, runs, 0, count);
-		} else {
-			java.util.List<Runnable> jobs = new java.util.ArrayList<>(parts);
-			for (int p = 0; p < parts; p++) {
-				int from = count * p / parts;
-				int to = count * (p + 1) / parts;
-				jobs.add(() -> keptRuns(tags, order, runs, from, to));
+		com.arcticlauncher.polonium.Timeline.start(com.arcticlauncher.polonium.Timeline.Step.PREP_TAGS);
+		try {
+			Tags tags = marker == NORMAL ? normal : seeThrough;
+			Font.DisplayMode mode = marker == NORMAL ? Font.DisplayMode.NORMAL : Font.DisplayMode.SEE_THROUGH;
+			int[] order = new int[tags.count];
+			for (int i = 0; i < order.length; i++) {
+				order[i] = i;
 			}
-			com.arcticlauncher.polonium.Workers.runAll(jobs);
-		}
-		// New ones laid out here (fonts aren't safe on several threads).
-		for (int k = 0; k < count; k++) {
-			if (runs[k] == null) {
-				int i = order[k];
-				runs[k] = tags.look[i].runs(tags.way[i], tags.y[i], background, font);
+			if (mode == Font.DisplayMode.SEE_THROUGH) {
+				CrowdFrame.sortFarToNear(order, order.length, tags.distance, lastSeeThroughOrder, lastSeeThroughOrder == null ? 0
+						: lastSeeThroughOrder.length);
+				lastSeeThroughOrder = order;
 			}
+			int count = order.length;
+			GlyphRuns.Run[][] runs = new GlyphRuns.Run[count][];
+			// Kept runs, on the helper threads (most tags, every frame after their first).
+			int parts = count < 256 ? 1 : com.arcticlauncher.polonium.Workers.PARTS;
+			if (parts == 1) {
+				keptRuns(tags, order, runs, 0, count);
+			} else {
+				java.util.List<Runnable> jobs = new java.util.ArrayList<>(parts);
+				for (int p = 0; p < parts; p++) {
+					int from = count * p / parts;
+					int to = count * (p + 1) / parts;
+					jobs.add(() -> keptRuns(tags, order, runs, from, to));
+				}
+				com.arcticlauncher.polonium.Workers.runAll(jobs);
+			}
+			// New ones laid out here (fonts aren't safe on several threads).
+			for (int k = 0; k < count; k++) {
+				if (runs[k] == null) {
+					int i = order[k];
+					runs[k] = tags.look[i].runs(tags.way[i], tags.y[i], background, font);
+				}
+			}
+			gpu.captureMany(count, runs, order, tags.pose, tags.light);
+			} finally {
+			com.arcticlauncher.polonium.Timeline.end(com.arcticlauncher.polonium.Timeline.Step.PREP_TAGS);
 		}
-		gpu.captureMany(count, runs, order, tags.pose, tags.light);
 	}
 
 	private static void keptRuns(Tags tags, int[] order, GlyphRuns.Run[][] runs, int from, int to) {

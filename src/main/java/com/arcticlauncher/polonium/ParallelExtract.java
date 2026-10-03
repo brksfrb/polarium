@@ -190,7 +190,7 @@ public final class ParallelExtract {
 								tMade += System.nanoTime() - b;
 							}
 							//#if MC >= 26.2
-							com.arcticlauncher.polonium.gpu.Crowd.precheck(states[i]);
+							com.arcticlauncher.polonium.gpu.Crowd.precheck(states[i], dispatcher);
 							//#endif
 						}
 					}

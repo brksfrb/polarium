@@ -22,5 +22,13 @@ public interface CrowdChecked {
 	long polonium$taken();
 
 	void polonium$taken(long frame);
+
+	/**
+	 * Whether it can be taken in bulk, worked out with the check: the frame
+	 * if so, minus the frame if not (anything else: not worked out).
+	 */
+	long polonium$takeable();
+
+	void polonium$takeable(long frame);
 }
 //#endif

@@ -50,6 +50,19 @@ abstract class AvatarRenderStateCrowdMixin implements CrowdChecked {
 		polonium$taken = frame;
 	}
 
+	@Unique
+	private long polonium$takeable;
+
+	@Override
+	public long polonium$takeable() {
+		return polonium$takeable;
+	}
+
+	@Override
+	public void polonium$takeable(long frame) {
+		polonium$takeable = frame;
+	}
+
 	@Override
 	public void polonium$checked(Object recipe, long frame) {
 		polonium$checked = recipe;

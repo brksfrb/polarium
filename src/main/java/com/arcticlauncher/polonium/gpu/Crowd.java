@@ -330,11 +330,26 @@ public final class Crowd {
 		try {
 			long frame = CrowdFrame.frame;
 			boolean[] take = new boolean[count];
-			inParts(count, (from, to) -> {
-				for (int i = from; i < to; i++) {
-					take[i] = takeable(states.get(i), dispatcher, frame);
+			// Mostly worked out while the states were made (precheck); the rest here, on the helpers.
+			boolean rest = false;
+			for (int i = 0; i < count; i++) {
+				long takeable = states.get(i) instanceof CrowdChecked checked ? checked.polonium$takeable() : -frame;
+				take[i] = takeable == frame;
+				if (takeable != frame && takeable != -frame) {
+					rest = true;
 				}
-			});
+			}
+			if (rest) {
+				inParts(count, (from, to) -> {
+					for (int i = from; i < to; i++) {
+						EntityRenderState state = states.get(i);
+						long takeable = state instanceof CrowdChecked checked ? checked.polonium$takeable() : -frame;
+						if (takeable != frame && takeable != -frame) {
+							take[i] = takeable(state, dispatcher, frame);
+						}
+					}
+				});
+			}
 			int taken = 0;
 			for (boolean t : take) {
 				if (t) {
@@ -583,8 +598,14 @@ public final class Crowd {
 				return true;
 			}
 		}
+		if (UNKNOWN_LAYERS.add(type)) {
+			LOG.info("Polonium: players go the game's way while {} is on them (a layer Polonium can't tell has nothing to draw)", type.getName());
+		}
 		return true;
 	}
+
+	/** Other mods' layers met so far (each logged once). */
+	private static final java.util.Set<Class<?>> UNKNOWN_LAYERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	// ---- Recording hooks (LivingEntityRenderer's layer loop, ItemInHandLayer) ----
 
@@ -614,10 +635,25 @@ public final class Crowd {
 	 * {@link #submit}. Recipes only change while entities are submitted, after
 	 * this, so reading them here is safe.
 	 */
-	public static void precheck(net.minecraft.client.renderer.entity.state.EntityRenderState state) {
+	public static void precheck(net.minecraft.client.renderer.entity.state.EntityRenderState state, EntityRenderDispatcher dispatcher) {
 		if (!ENABLED || !(state instanceof AvatarRenderState avatar)) {
 			return;
 		}
+		check(avatar);
+		// And whether the crowd path can take it in bulk, while it's at hand (bulkSubmit only reads this).
+		long frame = CrowdFrame.frame + 1;
+		((CrowdChecked) avatar).polonium$takeable(BULK && takeable(avatar, dispatcher, frame) ? frame : -frame);
+	}
+
+	/** {@link #precheck(net.minecraft.client.renderer.entity.state.EntityRenderState, EntityRenderDispatcher)} without the bulk check (bulkSubmit works it out). */
+	public static void precheck(net.minecraft.client.renderer.entity.state.EntityRenderState state) {
+		if (ENABLED && state instanceof AvatarRenderState avatar) {
+			check(avatar);
+			((CrowdChecked) avatar).polonium$takeable(0);
+		}
+	}
+
+	private static void check(AvatarRenderState avatar) {
 		CrowdRecipe recipe = RECIPES.get(avatar.id);
 		CrowdChecked checked = (CrowdChecked) avatar;
 		if (recipe != null && checked.polonium$checked() == recipe && com.arcticlauncher.polonium.LightStates.broughtUp()) {
