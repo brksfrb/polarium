@@ -303,9 +303,13 @@ public final class CrowdBench implements ClientModInitializer {
 		mc.getWindow().setWindowed(1600, 900);
 		// No frame rate limit while no one touches the game (the default caps it after a while).
 		mc.options.inactivityFpsLimit().set(net.minecraft.client.InactivityFpsLimit.MINIMIZED);
+		//#if MC >= 26.2
 		if (!mc.gui.hud.isHidden()) {
 			mc.gui.hud.toggle();
 		}
+		//#else
+		mc.options.hideGui = true;
+		//#endif
 		mc.options.chatVisibility().set(net.minecraft.world.entity.player.ChatVisiblity.HIDDEN);
 		mc.options.fov().set(70);
 		boolean off = Boolean.getBoolean("polarium.off");
@@ -350,7 +354,12 @@ public final class CrowdBench implements ClientModInitializer {
 			dir.mkdirs();
 			String file = String.format(java.util.Locale.ROOT, "%d-%s-view%d.png", COUNT,
 					Boolean.getBoolean("polarium.off") ? "without" : "polarium", index);
-			net.minecraft.client.Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget(), image -> {
+			//#if MC >= 26.2
+			com.mojang.blaze3d.pipeline.RenderTarget target = mc.gameRenderer.mainRenderTarget();
+			//#else
+			com.mojang.blaze3d.pipeline.RenderTarget target = mc.getMainRenderTarget();
+			//#endif
+			net.minecraft.client.Screenshot.takeScreenshot(target, image -> {
 				try (image) {
 					image.writeToFile(new File(dir, file));
 				} catch (IOException e) {
