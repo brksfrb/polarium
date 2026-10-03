@@ -1,4 +1,4 @@
-# Polonium
+# Polarium
 
 Faster entity rendering for huge crowds in Minecraft (Fabric). The work
 Minecraft does for every player and mob on one thread is spread across your
@@ -7,6 +7,8 @@ instanced draws, with every frame drawn the same as the game draws it.
 
 Made by the [Arctic Launcher](https://arcticlauncher.com) team; it works on its
 own, in any launcher.
+
+Formerly named Polonium (until 0.26).
 
 ## What it does
 
@@ -29,7 +31,7 @@ own, in any launcher.
 
 Things it doesn't draw itself (unusual poses, mods' own entity layers, other
 render types) stay on the game's renderer, so they look exactly as without
-Polonium. Every frame is drawn the same as the game draws it: no lower detail
+Polarium. Every frame is drawn the same as the game draws it: no lower detail
 far away, no skipped frames for distant players.
 
 ## Numbers
@@ -39,7 +41,7 @@ armor, held items and a name tag, all in view), i9-12900KF + RTX 3080 Ti,
 Minecraft 26.2 with Sodium, Lithium, EntityCulling, ImmediatelyFast and
 FerriteCore:
 
-| Players in view | Without Polonium | With Polonium |
+| Players in view | Without Polarium | With Polarium |
 | --- | --- | --- |
 | 5,000 | 12 FPS | ~92 FPS |
 | 1,000 | — | ~350 FPS |
@@ -48,7 +50,7 @@ With a popular mod set on top (Fabric API, Entity Texture Features,
 Emotecraft, Not Enough Animations, 3D Skin Layers, Wavey Capes, Simple Voice
 Chat, Xaero's Minimap, Jade, AppleSkin, Mod Menu):
 
-| Players in view | Without Polonium | With Polonium |
+| Players in view | Without Polarium | With Polarium |
 | --- | --- | --- |
 | 1,000 | 33 FPS | ~130 FPS |
 | 300 | 55 FPS | ~260 FPS |
@@ -68,16 +70,16 @@ Tested alongside Sodium, Lithium, EntityCulling, ImmediatelyFast, FerriteCore,
 Fabric API, Entity Texture Features, Emotecraft (Player Animation Library),
 Not Enough Animations, 3D Skin Layers, Wavey Capes, Simple Voice Chat,
 Xaero's Minimap, Jade, AppleSkin and Mod Menu: drawn the same as without
-Polonium.
+Polarium.
 
-Polonium looks at what other mods change before taking anything over:
+Polarium looks at what other mods change before taking anything over:
 
 - With a shaders mod (Iris, Oculus) or a mod that changes entity models
   (Entity Model Features, Figura) installed, entity models stay on the game's
   renderer; the rest still applies.
 - Another mod hooking how player render states are made each frame turns
-  kept states off (logged), unless Polonium knows the hook. Mods can do their
-  per-frame work themselves through a `polonium:light_state` entrypoint (a
+  kept states off (logged), unless Polarium knows the hook. Mods can do their
+  per-frame work themselves through a `polarium:light_state` entrypoint (a
   `BiConsumer<Entity, EntityRenderState>`, called after each bringing up).
 - Another mod changing how player models are posed keeps the per-part
   matrices on the CPU (logged), unless its hooks only move the head, body,
@@ -86,11 +88,11 @@ Polonium looks at what other mods change before taking anything over:
   game's way; the rest of the player still goes the GPU path.
 
 Turn things off with JVM arguments if something looks wrong:
-`-Dpolonium.off=true` (everything), `-Dpolonium.parallelTicks=false`,
-`-Dpolonium.parallelExtract=false`, `-Dpolonium.lightStates=false`,
-`-Dpolonium.crowd=false`, `-Dpolonium.skeleton=false`,
-`-Dpolonium.helpers=N` (helper threads; default two thirds of your CPU's
-threads, up to 16). `-Dpolonium.debugTimeline=true` logs where each frame's
+`-Dpolarium.off=true` (everything), `-Dpolarium.parallelTicks=false`,
+`-Dpolarium.parallelExtract=false`, `-Dpolarium.lightStates=false`,
+`-Dpolarium.crowd=false`, `-Dpolarium.skeleton=false`,
+`-Dpolarium.helpers=N` (helper threads; default two thirds of your CPU's
+threads, up to 16). `-Dpolarium.debugTimeline=true` logs where each frame's
 time goes.
 
 ## Building
@@ -107,5 +109,5 @@ versions without starting the game.
 
 ## License
 
-GPL-3.0-or-later. Polonium's instanced shaders are made from the game's own
+GPL-3.0-or-later. Polarium's instanced shaders are made from the game's own
 at load time; no Minecraft code is included.

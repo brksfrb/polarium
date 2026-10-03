@@ -1,0 +1,96 @@
+//#if MC >= 26.2
+package com.arcticlauncher.polarium.mixin;
+
+import com.arcticlauncher.polarium.ParallelExtract;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.extract.LevelExtractor;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
+import net.minecraft.util.Mth;
+import net.minecraft.world.TickRateManager;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/**
+ * The game's {@code extractVisibleEntities}, with the per-entity work spread
+ * over threads: which entities are visible, then their render states, are
+ * worked out on several threads (only for renderers known to be safe, see
+ * {@link ParallelExtract}); everything with side effects stays on this
+ * thread, and states are added in the game's order. With few entities, or when Polarium has stepped aside,
+ * the game's own code runs.
+ *
+ * Applied after other mods' hooks (a priority above the default 1000): their
+ * callbacks at the head of extractVisibleEntities run before this one takes
+ * the method over (entity culling records the frame's frustum there).
+ */
+@Mixin(value = LevelExtractor.class, priority = 1500)
+abstract class LevelExtractorMixin {
+	@Shadow
+	@Final
+	private Minecraft minecraft;
+
+	@Shadow
+	@Final
+	private LevelRenderer levelRenderer;
+
+	@Shadow
+	private ClientLevel level;
+
+	@Shadow
+	public abstract boolean isEntityVisible(Entity entity, Frustum frustum, double camX, double camY, double camZ);
+
+	@Shadow
+	protected abstract EntityRenderState extractEntity(Entity entity, float partialTicks);
+
+	@Inject(method = "extractVisibleEntities", at = @At("HEAD"), cancellable = true)
+	private void polarium$parallel(Camera camera, Frustum frustum, DeltaTracker deltaTracker, LevelRenderState output, CallbackInfo ci) {
+		if (!ParallelExtract.enabled()) {
+			return;
+		}
+		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.EXTRACT_ENTITIES);
+		Vec3 cameraPos = camera.position();
+		double camX = cameraPos.x();
+		double camY = cameraPos.y();
+		double camZ = cameraPos.z();
+		TickRateManager tickRateManager = this.minecraft.level.tickRateManager();
+		Entity.setViewScale(
+				Mth.clamp(this.minecraft.options.getEffectiveRenderDistance() / 8.0, 1.0, 2.5) * this.minecraft.options.entityDistanceScaling().get());
+		List<Entity> all = new ArrayList<>();
+		for (Entity entity : this.level.entitiesForRendering()) {
+			all.add(entity);
+		}
+		com.arcticlauncher.polarium.Workers.load(all.size());
+		EntityRenderDispatcher dispatcher = this.levelRenderer.entityRenderDispatcher();
+		// The same for every entity but those the tick rate freezes.
+		float running = deltaTracker.getGameTimeDeltaPartialTick(true);
+		float frozen = deltaTracker.getGameTimeDeltaPartialTick(false);
+		Entity cameraEntity = camera.entity();
+		boolean detached = camera.isDetached();
+		boolean sleeping = cameraEntity instanceof LivingEntity living && living.isSleeping();
+		ParallelExtract.extractLevel(all, dispatcher, e -> this.isEntityVisible(e, frustum, camX, camY, camZ),
+				// The game's camera rules: not the camera's own entity in first person (unless asleep), no other local player.
+				e -> (e != cameraEntity || detached || sleeping) && (!(e instanceof LocalPlayer) || cameraEntity == e),
+				e -> tickRateManager.isEntityFrozen(e) ? frozen : running, this::extractEntity, output.entityRenderStates);
+		// For the debug screen's entity count (the states land later; last frame's count).
+		output.lastEntityRenderStateCount = ParallelExtract.lastDrawn;
+		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.EXTRACT_ENTITIES);
+		ci.cancel();
+	}
+}
+//#endif

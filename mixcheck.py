@@ -1,4 +1,4 @@
-"""Check Polonium's mixin hooks against Minecraft versions, without starting the game.
+"""Check Polarium's mixin hooks against Minecraft versions, without starting the game.
 
 Usage (from anywhere, JDK on JAVA_HOME):
     python mixcheck.py 26.2 26.1.2 ...
@@ -9,7 +9,7 @@ jar exist.
 Prints, per version, every hooked method, accessor, INVOKE target and
 @Shadow member that doesn't exist, and every INVOKE target the hooked method
 never calls: each of those crashes the game at startup (or silently does
-nothing). Mixins a version leaves out of polonium.mixins.json are skipped when
+nothing). Mixins a version leaves out of polarium.mixins.json are skipped when
 the expanded config is available. Exit code 1 if anything is wrong.
 """
 import glob
@@ -73,7 +73,7 @@ class Jar:
 
 def active_mixins(version):
     """Mixin names this version's expanded config lists, or None when unknown."""
-    path = os.path.join(HERE, "build", "resources", "main", "polonium.mixins.json")
+    path = os.path.join(HERE, "build", "resources", "main", "polarium.mixins.json")
     pre = os.path.join(HERE, "build", "preprocessed", version)
     if not os.path.isfile(path) or not os.path.isdir(pre):
         return None
@@ -88,7 +88,7 @@ def active_mixins(version):
 
 def check(version):
     jar_path = jar_for(version)
-    src_dir = os.path.join(HERE, "build", "preprocessed", version, "java", "com", "arcticlauncher", "polonium", "mixin")
+    src_dir = os.path.join(HERE, "build", "preprocessed", version, "java", "com", "arcticlauncher", "polarium", "mixin")
     if not jar_path or not os.path.isdir(src_dir):
         print(f"{version}: compile it first (no named jar or preprocessed sources)")
         return 1

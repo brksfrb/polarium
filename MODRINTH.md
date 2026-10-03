@@ -1,6 +1,6 @@
-# Polonium
+# Polarium
 
-**Huge crowds of players, smooth.** Polonium makes Minecraft draw thousands of
+**Huge crowds of players, smooth.** Polarium makes Minecraft draw thousands of
 players at high frame rates, with every frame drawn exactly as the game draws
 it: no lower detail far away, no skipped animation frames, no lost features.
 
@@ -13,7 +13,7 @@ Crowd benchmark: players walking about, each with its own skin, armor, held
 items and a name tag, all in view (i9-12900KF + RTX 3080 Ti, Minecraft 26.2,
 with Sodium, Lithium, EntityCulling, ImmediatelyFast, FerriteCore):
 
-| Players in view | Without Polonium | With Polonium |
+| Players in view | Without Polarium | With Polarium |
 | --- | --- | --- |
 | 5,000 | 12 FPS | ~92 FPS |
 | 1,000 | — | ~350 FPS |
@@ -38,7 +38,7 @@ Jade, AppleSkin, Mod Menu): 1,000 players 33 → ~130 FPS.
 
 Works alongside Sodium, Lithium, EntityCulling, ImmediatelyFast, FerriteCore,
 Entity Texture Features, Emotecraft, Not Enough Animations, 3D Skin Layers,
-Wavey Capes, Simple Voice Chat and more. Polonium checks what other mods
+Wavey Capes, Simple Voice Chat and more. Polarium checks what other mods
 change and steps aside where it can't be sure: with a shaders mod (Iris) or an
 entity model mod (Entity Model Features, Figura), entity models stay on the
 game's renderer and the rest still applies.
@@ -52,10 +52,10 @@ states; the GPU path is being ported). More versions are coming.
 
 ## Something looks wrong?
 
-Turn parts off with JVM arguments: `-Dpolonium.off=true` (everything),
-`-Dpolonium.crowd=false` (the GPU path), `-Dpolonium.skeleton=false`,
-`-Dpolonium.lightStates=false`, `-Dpolonium.parallelTicks=false`,
-`-Dpolonium.parallelExtract=false`. Please report it on
-[GitHub](https://github.com/brksfrb/polonium/issues) with your log.
+Turn parts off with JVM arguments: `-Dpolarium.off=true` (everything),
+`-Dpolarium.crowd=false` (the GPU path), `-Dpolarium.skeleton=false`,
+`-Dpolarium.lightStates=false`, `-Dpolarium.parallelTicks=false`,
+`-Dpolarium.parallelExtract=false`. Please report it on
+[GitHub](https://github.com/brksfrb/polarium/issues) with your log.
 
 Open source (GPL-3.0). Made by the [Arctic Launcher](https://arcticlauncher.com) team.
