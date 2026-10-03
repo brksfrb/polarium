@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.27.1
+
+- Fix a crash with a spinning compass (no target, another dimension, or a
+  recovery compass with no death yet) in the hotbar while other players or
+  mobs held one: their states were made on helper threads, and spinning
+  compasses share one random source with the HUD's. Item models that change
+  by themselves (compass, clock, cooldown, bow, local time, ...) are now
+  worked out one at a time on any thread; everything else as before.
+
 ## 0.27.0
 
 - **Polonium is now Polarium.** New name, new icon; the mod id is

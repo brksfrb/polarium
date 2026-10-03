@@ -65,6 +65,10 @@ public final class CrowdBench implements ClientModInitializer {
 		return PLAYER_SKINS.isEmpty() ? null : PLAYER_SKINS.get(id);
 	}
 
+	/** -Dpolarium.bench.compass=true: every tenth bench player, and the bench's own hotbar, hold a spinning (recovery) compass. */
+	private static final boolean COMPASS = Boolean.getBoolean("polarium.bench.compass");
+	/** With compasses: every how many-th bench player holds one (-Dpolarium.bench.compassEvery, default 10). */
+	private static final int COMPASS_EVERY = Integer.getInteger("polarium.bench.compassEvery", 10);
 	/** -Dpolarium.bench.armor=false: bare mannequins (to look at the skins). */
 	private static final boolean ARMOR = !"false".equals(System.getProperty("polarium.bench.armor"));
 	/** -Dpolarium.bench.profile=true: also record the game's own profile (F3+L) while measuring. */
@@ -187,7 +191,8 @@ public final class CrowdBench implements ClientModInitializer {
 				player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.FEET, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_BOOTS));
 			}
 			player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_SWORD));
-			player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLDEN_APPLE));
+			player.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, new net.minecraft.world.item.ItemStack(
+					COMPASS && i % COMPASS_EVERY == 0 ? net.minecraft.world.item.Items.RECOVERY_COMPASS : net.minecraft.world.item.Items.GOLDEN_APPLE));
 			if (SKINS > 1) {
 				net.minecraft.resources.Identifier texture = net.minecraft.resources.Identifier.fromNamespaceAndPath("polarium",
 						"textures/bench/skin_" + (i % SKINS) + ".png");
@@ -199,6 +204,13 @@ public final class CrowdBench implements ClientModInitializer {
 			PLAYER_CROWD.add(player);
 		}
 		LOG.info("crowd bench: {} players", COUNT);
+		if (COMPASS) {
+			// A spinning compass in the hotbar too (no death yet): the HUD works it out while the crowd's are made.
+			net.minecraft.client.server.IntegratedServer server = mc.getSingleplayerServer();
+			String name = mc.player.getGameProfile().name();
+			server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+					"item replace entity " + name + " hotbar.0 with minecraft:recovery_compass"));
+		}
 		// Movement as a server sends it: every 50 ms, a new position for each player, interpolated by the client.
 		TIMER.scheduleAtFixedRate(() -> run(CrowdBench::walk), 50, 50, TimeUnit.MILLISECONDS);
 	}

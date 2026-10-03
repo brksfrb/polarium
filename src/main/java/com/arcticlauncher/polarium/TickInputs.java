@@ -3,15 +3,6 @@ package com.arcticlauncher.polarium;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.item.CompositeModel;
-import net.minecraft.client.renderer.item.CuboidItemModelWrapper;
-import net.minecraft.client.renderer.item.EmptyModel;
-import net.minecraft.client.renderer.item.ItemModel;
-import net.minecraft.client.renderer.item.MissingItemModel;
-import net.minecraft.client.renderer.item.SpecialModelWrapper;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
@@ -34,7 +25,6 @@ import net.minecraft.world.item.ItemStack;
 public final class TickInputs {
 	/** Never the same as anything (not even itself). */
 	public static final long NEVER = Long.MIN_VALUE;
-	private static final Map<ItemModel, Boolean> FIXED = new ConcurrentHashMap<>();
 	private static final EquipmentSlot[] SLOTS = EquipmentSlot.values();
 	private static final PlayerModelPart[] MODEL_PARTS = PlayerModelPart.values();
 
@@ -71,7 +61,7 @@ public final class TickInputs {
 		h = mix(h, System.identityHashCode(entity.getCustomName()));
 		for (EquipmentSlot slot : SLOTS) {
 			ItemStack stack = entity.getItemBySlot(slot);
-			if ((slot == EquipmentSlot.MAINHAND || slot == EquipmentSlot.OFFHAND || slot == EquipmentSlot.HEAD) && !fixedModel(stack)) {
+			if ((slot == EquipmentSlot.MAINHAND || slot == EquipmentSlot.OFFHAND || slot == EquipmentSlot.HEAD) && !ItemModels.fixed(stack)) {
 				return NEVER;
 			}
 			h = mix(h, System.identityHashCode(stack));
@@ -132,46 +122,5 @@ public final class TickInputs {
 		}
 	}
 
-	/** Whether the item's model is the same whatever the time or holder (no model choosing between others). */
-	private static boolean fixedModel(ItemStack stack) {
-		if (stack.isEmpty()) {
-			return true;
-		}
-		Identifier id = stack.get(DataComponents.ITEM_MODEL);
-		if (id == null) {
-			return true;
-		}
-		ItemModel model = Minecraft.getInstance().getModelManager().getItemModel(id);
-		return FIXED.computeIfAbsent(model, TickInputs::fixed);
-	}
-
-	private static boolean fixed(ItemModel model) {
-		boolean fixed = fixedModel(model);
-		if (!fixed && DEBUG) {
-			org.slf4j.LoggerFactory.getLogger("Polarium").info("Polarium: players holding items with a {} are made in full every tick",
-					model.getClass().getSimpleName());
-		}
-		return fixed;
-	}
-
-	private static boolean fixedModel(ItemModel model) {
-		if (model instanceof CompositeModel composite) {
-			for (ItemModel part : ((com.arcticlauncher.polarium.mixin.CompositeModelAccess) composite).polarium$models()) {
-				if (!fixedModel(part)) {
-					return false;
-				}
-			}
-			return true;
-		}
-		if (model instanceof net.minecraft.client.renderer.item.SelectItemModel<?> select) {
-			// Choosing by the item, its holder, where it's drawn, the dimension: the same while those are (the
-			// inputs cover them). Only the local time changes by itself. (The models it chooses between are
-			// taken to be fixed: they can't be looked into.)
-			return !(((com.arcticlauncher.polarium.mixin.SelectItemModelAccess) select).polarium$property()
-					instanceof net.minecraft.client.renderer.item.properties.select.LocalTime);
-		}
-		return model instanceof CuboidItemModelWrapper || model instanceof SpecialModelWrapper<?> || model instanceof EmptyModel
-				|| model instanceof MissingItemModel;
-	}
 }
 //#endif
