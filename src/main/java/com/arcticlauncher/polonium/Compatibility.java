@@ -5,7 +5,6 @@ import java.util.TreeSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.spongepowered.asm.mixin.transformer.ClassInfo;
 
 /**
  * Polonium takes over the upload loop rather than patching inside it, so if
@@ -14,7 +13,7 @@ import org.spongepowered.asm.mixin.transformer.ClassInfo;
  */
 final class Compatibility {
 	private static final Logger LOG = LoggerFactory.getLogger("Polonium");
-	private static final String TARGET = "net/minecraft/client/renderer/StagedVertexBuffer";
+	private static final String TARGET = "net.minecraft.client.renderer.StagedVertexBuffer";
 	/** Other mods' changes that keep working with Polonium (it calls the code they change). */
 	private static final Set<String> KNOWN = Set.of(
 			// Sodium: picks each see-through face's sort point, in decodeSortingPoints, which Polonium calls.
@@ -33,12 +32,13 @@ final class Compatibility {
 	}
 
 	private static boolean check() {
-		ClassInfo info = ClassInfo.forName(TARGET);
-		if (info == null) {
-			return true;
+		Set<IMixinInfo> mixins = MixinsOn.of(TARGET);
+		if (mixins == null) {
+			LOG.warn("Polonium: can't tell which mods change entity uploads; leaving them to the game");
+			return false;
 		}
 		Set<String> others = new TreeSet<>();
-		for (IMixinInfo mixin : info.getAppliedMixins()) {
+		for (IMixinInfo mixin : mixins) {
 			String name = mixin.getClassName();
 			if (!name.startsWith("com.arcticlauncher.polonium.") && !KNOWN.contains(name)) {
 				others.add(name);

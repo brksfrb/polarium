@@ -3,14 +3,11 @@ package com.arcticlauncher.polonium;
 
 import com.arcticlauncher.polonium.mixin.AvatarRendererLightAccess;
 import com.arcticlauncher.polonium.mixin.LivingEntityRendererAccess;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -22,8 +19,12 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 /**
  * Other players' render states made in full once per tick, and between
@@ -57,14 +58,87 @@ public final class LightStates {
 			// Entity Texture Features: notes which entity a state is of (a kept state's stays right), and may make a
 			// state full bright for emissive textures in getPackedLightCoords (which bringing up calls too).
 			"entity_texture_features",
-			// Bridges MixinExtras generates for other hooks (themselves checked by their own names).
-			"bridge");
+			// Not Enough Animations (1.12): notes the state's entity and held items in it, and the state on the player.
+			"notenoughanimations");
 	/** The renderer classes whose extraction a light frame skips. */
 	private static final String[] RENDERERS = {"net.minecraft.client.renderer.entity.player.AvatarRenderer",
 			"net.minecraft.client.renderer.entity.HumanoidMobRenderer", "net.minecraft.client.renderer.entity.LivingEntityRenderer",
 			"net.minecraft.client.renderer.entity.EntityRenderer", "net.minecraft.client.renderer.entity.state.ArmedEntityRenderState"};
-	/** A mixin's merged member: handler$zdg000$entityculling$name, md2f7439$polonium$name, … */
-	private static final Pattern MERGED = Pattern.compile("^(?:[a-zA-Z]+\\$[a-z]{3}\\d{3}|md[0-9a-f]{6,}|mixinextras)\\$([a-z0-9_.\\-]+)\\$");
+	/**
+	 * The renderers' methods a light frame skips (it calls the rest of the
+	 * per-frame ones itself: name tags, light, body turn, flight, cape).
+	 * Another mod's hook into one of these may do per-frame work.
+	 */
+	private static final Set<String> SKIPPED = Set.of("extractRenderState", "extractHumanoidRenderState", "extractArmedEntityRenderState",
+			"getArmPose", "getAttackArm");
+	/** Annotations of hooks into a method (their {@code method} names it). */
+	private static final Set<String> HOOKS = Set.of("Lorg/spongepowered/asm/mixin/injection/Inject;",
+			"Lorg/spongepowered/asm/mixin/injection/Redirect;", "Lorg/spongepowered/asm/mixin/injection/ModifyArg;",
+			"Lorg/spongepowered/asm/mixin/injection/ModifyArgs;", "Lorg/spongepowered/asm/mixin/injection/ModifyVariable;",
+			"Lorg/spongepowered/asm/mixin/injection/ModifyConstant;",
+			"Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;", "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;",
+			"Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;", "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;",
+			"Lcom/llamalad7/mixinextras/injector/ModifyReturnValue;", "Lcom/llamalad7/mixinextras/injector/ModifyReceiver;",
+			"Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;");
+
+	/** The skipped methods ({@link #SKIPPED}) this mixin hooks or replaces; a target it can't make out counts as one. */
+	private static List<String> skippedHooks(IMixinInfo mixin) {
+		List<String> out = new ArrayList<>();
+		ClassNode node;
+		try {
+			node = mixin.getClassNode(0);
+		} catch (RuntimeException e) {
+			out.add("(can't read " + mixin.getClassName() + ")");
+			return out;
+		}
+		for (MethodNode method : node.methods) {
+			List<AnnotationNode> annotations = new ArrayList<>();
+			if (method.visibleAnnotations != null) {
+				annotations.addAll(method.visibleAnnotations);
+			}
+			if (method.invisibleAnnotations != null) {
+				annotations.addAll(method.invisibleAnnotations);
+			}
+			for (AnnotationNode annotation : annotations) {
+				if ("Lorg/spongepowered/asm/mixin/Overwrite;".equals(annotation.desc) && SKIPPED.contains(method.name)) {
+					out.add(method.name);
+				}
+				if (!HOOKS.contains(annotation.desc) || annotation.values == null) {
+					continue;
+				}
+				for (int i = 0; i + 1 < annotation.values.size(); i += 2) {
+					if ("method".equals(annotation.values.get(i)) && annotation.values.get(i + 1) instanceof List<?> targets) {
+						for (Object target : targets) {
+							String name = targetName(String.valueOf(target));
+							if (name == null || SKIPPED.contains(name)) {
+								out.add(name == null ? String.valueOf(target) : name);
+							}
+						}
+					}
+				}
+			}
+		}
+		return out;
+	}
+
+	/** A hook's target's method name (from {@code Lowner;name(desc)}, {@code name(desc)} or {@code name}); null for a pattern. */
+	private static @org.jspecify.annotations.Nullable String targetName(String target) {
+		String name = target;
+		if (name.startsWith("<init>") || name.startsWith("<clinit>")) {
+			// Constructors: not per frame.
+			return "<init>";
+		}
+		int args = name.indexOf('(');
+		int owner = name.indexOf(';');
+		if (name.startsWith("L") && owner > 0 && (args < 0 || owner < args)) {
+			name = name.substring(owner + 1);
+			args = name.indexOf('(');
+		}
+		if (args >= 0) {
+			name = name.substring(0, args);
+		}
+		return name.isEmpty() || !name.chars().allMatch(c -> Character.isJavaIdentifierPart(c) || c == '<' || c == '>') ? null : name;
+	}
 	private static volatile Boolean on;
 	private static List<BiConsumer<Object, Object>> hooks = List.of();
 	/** With -Dpolonium.debugTimeline: why states were made in full or brought up (logged with the timeline). */
@@ -113,33 +187,55 @@ public final class LightStates {
 		if ("false".equals(System.getProperty("polonium.lightStates"))) {
 			return false;
 		}
+		// Mods whose per-frame work Polonium does for them (see LightStateCompat).
+		List<BiConsumer<Object, Object>> builtIn = new ArrayList<>();
+		Set<String> handled = new java.util.HashSet<>();
+		BiConsumer<Object, Object> playerAnimations = LightStateCompat.playerAnimationLibrary();
+		if (playerAnimations != null) {
+			builtIn.add(playerAnimations);
+			handled.add("player_animation_library");
+		}
 		Set<String> unknown = new TreeSet<>();
 		Set<String> members = new TreeSet<>();
+		int ours = 0;
 		for (String name : RENDERERS) {
-			try {
-				for (Method method : Class.forName(name, false, LightStates.class.getClassLoader()).getDeclaredMethods()) {
-					Matcher m = MERGED.matcher(method.getName());
-					if (m.find() && !KNOWN.contains(m.group(1)) && !m.group(1).startsWith("fabric")) {
-						unknown.add(m.group(1));
-						members.add(method.getDeclaringClass().getSimpleName() + "." + method.getName());
-					}
+			Set<IMixinInfo> mixins = MixinsOn.of(name);
+			for (IMixinInfo mixin : mixins) {
+				String mod = MixinsOn.mod(mixin);
+				if (handled.contains(mod)) {
+					continue;
 				}
-			} catch (ClassNotFoundException | LinkageError e) {
-				unknown.add("(can't look: " + e + ")");
+				if ("polonium".equals(mod)) {
+					ours++;
+				}
+				if (KNOWN.contains(mod) || mod.startsWith("fabric")) {
+					continue;
+				}
+				for (String hooked : skippedHooks(mixin)) {
+					unknown.add(mod);
+					members.add(name.substring(name.lastIndexOf('.') + 1) + "." + hooked + " (" + mixin.getName() + ")");
+				}
 			}
+		}
+		if (ours == 0) {
+			// Polonium's own hooks there not found: other mods' can't be told either.
+			LOG.info("Polonium: other players' render states made in full every frame (can't tell which mods change how they're made)");
+			return false;
 		}
 		if (!unknown.isEmpty()) {
 			LOG.info("Polonium: other players' render states made in full every frame ({} change how they're made: {})", unknown, members);
 			return false;
 		}
-		List<BiConsumer<Object, Object>> found = new ArrayList<>();
+		List<BiConsumer<Object, Object>> found = new ArrayList<>(builtIn);
 		for (BiConsumer hook : FabricLoader.getInstance().getEntrypoints("polonium:light_state", BiConsumer.class)) {
 			found.add(hook);
 		}
 		hooks = List.copyOf(found);
-		LOG.info("Polonium: other players' render states made in full once a tick, brought up to the frame between ({} mods' own per-frame work: {})",
-				hooks.size(), FabricLoader.getInstance().getEntrypointContainers("polonium:light_state", BiConsumer.class).stream()
-						.map(c -> c.getProvider().getMetadata().getId()).toList());
+		List<String> withWork = new ArrayList<>(handled);
+		FabricLoader.getInstance().getEntrypointContainers("polonium:light_state", BiConsumer.class)
+				.forEach(c -> withWork.add(c.getProvider().getMetadata().getId()));
+		LOG.info("Polonium: other players' render states made in full once a tick, brought up to the frame between (mods' own per-frame work: {})",
+				withWork);
 		return true;
 	}
 
