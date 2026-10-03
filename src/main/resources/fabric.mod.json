@@ -11,6 +11,7 @@
 		"issues": "https://github.com/brksfrb/polonium/issues"
 	},
 	"license": "GPL-3.0-or-later",
+	"icon": "assets/polonium/icon.png",
 	"environment": "client",
 	"entrypoints": {
 		"client": ["com.arcticlauncher.polonium.bench.CrowdBench"]
