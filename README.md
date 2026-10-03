@@ -13,8 +13,9 @@ own, in any launcher.
 - **Players drawn on the GPU.** Bodies, armor, capes, held items and name tags
   of other players (and mannequins) are batched: thousands of players take
   around ten draw calls. Each model's shape is uploaded once; per player only
-  its pose goes up each frame. Skins share an atlas so different skins still
-  share a draw.
+  a small block goes up each frame (where it is and how its head, body, arms
+  and legs are turned), and the GPU works out each part's place from it. Skins
+  share an atlas so different skins still share a draw.
 - **Render states on several threads.** Working out what each entity looks
   like this frame (Minecraft's "extraction") runs on helper threads while the
   render thread carries on with the rest of the frame.
@@ -22,26 +23,35 @@ own, in any launcher.
   (movement smoothing, animations, head turning) runs in parallel; anything
   that reaches outside the player (particles, sounds, moving between entity
   sections) is held back and done in order on the render thread.
-- **Less repeated work.** Render states, held item models and attribute
-  values are kept between frames where they can't have changed.
+- **Less repeated work.** A player's render state is made in full once a
+  tick and only brought up to the frame between ticks; held item models and
+  attribute values are kept while they can't have changed.
 
 Things it doesn't draw itself (unusual poses, mods' own entity layers, other
 render types) stay on the game's renderer, so they look exactly as without
-Polonium.
+Polonium. Every frame is drawn the same as the game draws it: no lower detail
+far away, no skipped frames for distant players.
 
 ## Numbers
 
 Crowd benchmark (client-side players walking about, each with its own skin,
-armor, held items and a name tag), i9-12900KF + RTX 3080 Ti, Minecraft 26.2
-with Sodium, Lithium and EntityCulling:
+armor, held items and a name tag, all in view), i9-12900KF + RTX 3080 Ti,
+Minecraft 26.2 with Sodium, Lithium, EntityCulling, ImmediatelyFast and
+FerriteCore:
 
 | Players in view | Without Polonium | With Polonium |
 | --- | --- | --- |
-| 5,000 | 12 FPS | ~50 FPS |
-| 1,000 | — | 140–180 FPS |
+| 5,000 | 12 FPS | ~92 FPS |
+| 1,000 | — | ~350 FPS |
 
-Work in progress: the next step moves per-frame animation onto the GPU, so the
-cost per frame stops growing with the crowd.
+With a popular mod set on top (Fabric API, Entity Texture Features,
+Emotecraft, Not Enough Animations, 3D Skin Layers, Wavey Capes, Simple Voice
+Chat, Xaero's Minimap, Jade, AppleSkin, Mod Menu):
+
+| Players in view | Without Polonium | With Polonium |
+| --- | --- | --- |
+| 1,000 | 33 FPS | ~130 FPS |
+| 300 | 55 FPS | ~260 FPS |
 
 ## Versions
 
@@ -54,14 +64,31 @@ No Fabric API needed.
 
 ## Compatibility
 
-- Works alongside Sodium, Lithium, EntityCulling, ImmediatelyFast and FerriteCore.
+Tested alongside Sodium, Lithium, EntityCulling, ImmediatelyFast, FerriteCore,
+Fabric API, Entity Texture Features, Emotecraft (Player Animation Library),
+Not Enough Animations, 3D Skin Layers, Wavey Capes, Simple Voice Chat,
+Xaero's Minimap, Jade, AppleSkin and Mod Menu: drawn the same as without
+Polonium.
+
+Polonium looks at what other mods change before taking anything over:
+
 - With a shaders mod (Iris, Oculus) or a mod that changes entity models
   (Entity Model Features, Figura) installed, entity models stay on the game's
   renderer; the rest still applies.
+- Another mod hooking how player render states are made each frame turns
+  kept states off (logged), unless Polonium knows the hook. Mods can do their
+  per-frame work themselves through a `polonium:light_state` entrypoint (a
+  `BiConsumer<Entity, EntityRenderState>`, called after each bringing up).
+- Another mod changing how player models are posed keeps the per-part
+  matrices on the CPU (logged), unless its hooks only move the head, body,
+  arms and legs.
+- Mod layers on players (capes, 3D skin layers) are drawn by the game, the
+  game's way; the rest of the player still goes the GPU path.
 
 Turn things off with JVM arguments if something looks wrong:
 `-Dpolonium.off=true` (everything), `-Dpolonium.parallelTicks=false`,
-`-Dpolonium.parallelExtract=false`, `-Dpolonium.crowd=false`,
+`-Dpolonium.parallelExtract=false`, `-Dpolonium.lightStates=false`,
+`-Dpolonium.crowd=false`, `-Dpolonium.skeleton=false`,
 `-Dpolonium.helpers=N` (helper threads; default two thirds of your CPU's
 threads, up to 16). `-Dpolonium.debugTimeline=true` logs where each frame's
 time goes.
