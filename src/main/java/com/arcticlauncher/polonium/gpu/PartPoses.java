@@ -218,7 +218,7 @@ final class PartPoses {
 	 * it's on): just the header, pointing at that entity's parts, which start
 	 * at texel {@code partsTexel} of the instance buffer.
 	 */
-	static void writeBorrowed(int color, int overlay, int light, float[] uv, int partsTexel, float[] out, int o) {
+	static void writeBorrowed(int color, int overlay, int light, float[] uv, int partsTexel, boolean skeleton, float[] out, int o) {
 		out[o] = ((color >> 16) & 0xFF) / 255f;
 		out[o + 1] = ((color >> 8) & 0xFF) / 255f;
 		out[o + 2] = (color & 0xFF) / 255f;
@@ -232,9 +232,61 @@ final class PartPoses {
 		out[o + 10] = uv[2];
 		out[o + 11] = uv[3];
 		out[o + 12] = partsTexel;
-		out[o + 13] = 0f;
+		out[o + 13] = skeleton ? 1f : 0f;
 		out[o + 14] = 0f;
 		out[o + 15] = 0f;
+	}
+
+	/**
+	 * An entity in the skeleton format ({@link ModelMesh#skeleton}): the
+	 * header, its root pose's rows, which parts are drawn (a bit per part),
+	 * and the six moving parts' values ({@link HumanoidPoses}); the GPU works
+	 * out each part's matrix as {@link #part} does here.
+	 */
+	static void writeSkeleton(int color, int overlay, int light, float[] uv, Matrix4f root, int drawn, float[] values, float[] out, int o) {
+		out[o] = ((color >> 16) & 0xFF) / 255f;
+		out[o + 1] = ((color >> 8) & 0xFF) / 255f;
+		out[o + 2] = (color & 0xFF) / 255f;
+		out[o + 3] = ((color >>> 24) & 0xFF) / 255f;
+		out[o + 4] = overlay & 0xFFFF;
+		out[o + 5] = (overlay >>> 16) & 0xFFFF;
+		out[o + 6] = light & 0xFFFF;
+		out[o + 7] = (light >>> 16) & 0xFFFF;
+		out[o + 8] = uv[0];
+		out[o + 9] = uv[1];
+		out[o + 10] = uv[2];
+		out[o + 11] = uv[3];
+		// Its block follows, in the skeleton format.
+		out[o + 12] = -1f;
+		out[o + 13] = 1f;
+		out[o + 14] = 0f;
+		out[o + 15] = 0f;
+		int r = o + HEADER_TEXELS * 4;
+		out[r] = root.m00();
+		out[r + 1] = root.m10();
+		out[r + 2] = root.m20();
+		out[r + 3] = root.m30();
+		out[r + 4] = root.m01();
+		out[r + 5] = root.m11();
+		out[r + 6] = root.m21();
+		out[r + 7] = root.m31();
+		out[r + 8] = root.m02();
+		out[r + 9] = root.m12();
+		out[r + 10] = root.m22();
+		out[r + 11] = root.m32();
+		out[r + 12] = drawn;
+		out[r + 13] = 0f;
+		out[r + 14] = 0f;
+		out[r + 15] = 0f;
+		int s = r + 16;
+		for (int part = 0; part < HumanoidPoses.PARTS; part++) {
+			int v = part * HumanoidPoses.VALUES;
+			System.arraycopy(values, v, out, s, HumanoidPoses.VALUES);
+			out[s + 9] = 0f;
+			out[s + 10] = 0f;
+			out[s + 11] = 0f;
+			s += 12;
+		}
 	}
 
 	/** Write part {@code index} (under {@code parent}) and its subtree; returns the number after the subtree. */

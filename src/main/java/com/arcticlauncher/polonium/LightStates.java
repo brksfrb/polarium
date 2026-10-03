@@ -19,9 +19,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.MethodNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -71,74 +68,7 @@ public final class LightStates {
 	 */
 	private static final Set<String> SKIPPED = Set.of("extractRenderState", "extractHumanoidRenderState", "extractArmedEntityRenderState",
 			"getArmPose", "getAttackArm");
-	/** Annotations of hooks into a method (their {@code method} names it). */
-	private static final Set<String> HOOKS = Set.of("Lorg/spongepowered/asm/mixin/injection/Inject;",
-			"Lorg/spongepowered/asm/mixin/injection/Redirect;", "Lorg/spongepowered/asm/mixin/injection/ModifyArg;",
-			"Lorg/spongepowered/asm/mixin/injection/ModifyArgs;", "Lorg/spongepowered/asm/mixin/injection/ModifyVariable;",
-			"Lorg/spongepowered/asm/mixin/injection/ModifyConstant;",
-			"Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;", "Lcom/llamalad7/mixinextras/injector/WrapWithCondition;",
-			"Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;", "Lcom/llamalad7/mixinextras/injector/ModifyExpressionValue;",
-			"Lcom/llamalad7/mixinextras/injector/ModifyReturnValue;", "Lcom/llamalad7/mixinextras/injector/ModifyReceiver;",
-			"Lcom/llamalad7/mixinextras/injector/wrapmethod/WrapMethod;");
 
-	/** The skipped methods ({@link #SKIPPED}) this mixin hooks or replaces; a target it can't make out counts as one. */
-	private static List<String> skippedHooks(IMixinInfo mixin) {
-		List<String> out = new ArrayList<>();
-		ClassNode node;
-		try {
-			node = mixin.getClassNode(0);
-		} catch (RuntimeException e) {
-			out.add("(can't read " + mixin.getClassName() + ")");
-			return out;
-		}
-		for (MethodNode method : node.methods) {
-			List<AnnotationNode> annotations = new ArrayList<>();
-			if (method.visibleAnnotations != null) {
-				annotations.addAll(method.visibleAnnotations);
-			}
-			if (method.invisibleAnnotations != null) {
-				annotations.addAll(method.invisibleAnnotations);
-			}
-			for (AnnotationNode annotation : annotations) {
-				if ("Lorg/spongepowered/asm/mixin/Overwrite;".equals(annotation.desc) && SKIPPED.contains(method.name)) {
-					out.add(method.name);
-				}
-				if (!HOOKS.contains(annotation.desc) || annotation.values == null) {
-					continue;
-				}
-				for (int i = 0; i + 1 < annotation.values.size(); i += 2) {
-					if ("method".equals(annotation.values.get(i)) && annotation.values.get(i + 1) instanceof List<?> targets) {
-						for (Object target : targets) {
-							String name = targetName(String.valueOf(target));
-							if (name == null || SKIPPED.contains(name)) {
-								out.add(name == null ? String.valueOf(target) : name);
-							}
-						}
-					}
-				}
-			}
-		}
-		return out;
-	}
-
-	/** A hook's target's method name (from {@code Lowner;name(desc)}, {@code name(desc)} or {@code name}); null for a pattern. */
-	private static @org.jspecify.annotations.Nullable String targetName(String target) {
-		String name = target;
-		if (name.startsWith("<init>") || name.startsWith("<clinit>")) {
-			// Constructors: not per frame.
-			return "<init>";
-		}
-		int args = name.indexOf('(');
-		int owner = name.indexOf(';');
-		if (name.startsWith("L") && owner > 0 && (args < 0 || owner < args)) {
-			name = name.substring(owner + 1);
-			args = name.indexOf('(');
-		}
-		if (args >= 0) {
-			name = name.substring(0, args);
-		}
-		return name.isEmpty() || !name.chars().allMatch(c -> Character.isJavaIdentifierPart(c) || c == '<' || c == '>') ? null : name;
-	}
 	private static volatile Boolean on;
 	private static List<BiConsumer<Object, Object>> hooks = List.of();
 	/** With -Dpolonium.debugTimeline: why states were made in full or brought up (logged with the timeline). */
@@ -211,7 +141,7 @@ public final class LightStates {
 				if (KNOWN.contains(mod) || mod.startsWith("fabric")) {
 					continue;
 				}
-				for (String hooked : skippedHooks(mixin)) {
+				for (String hooked : MixinsOn.hooks(mixin, SKIPPED)) {
 					unknown.add(mod);
 					members.add(name.substring(name.lastIndexOf('.') + 1) + "." + hooked + " (" + mixin.getName() + ")");
 				}

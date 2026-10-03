@@ -197,6 +197,9 @@ final class CrowdFrame {
 		final PoseStack hand = new PoseStack();
 		final List<Matrix4f> stack = new ArrayList<>();
 		float[] parts = new float[PartPoses.VALUES_PER_PART * 64];
+		/** The six moving parts' values (skeleton format), and the body's kept for its held items. */
+		final float[] skeleton = new float[HumanoidPoses.PARTS * HumanoidPoses.VALUES];
+		final float[] anchorSkeleton = new float[HumanoidPoses.PARTS * HumanoidPoses.VALUES];
 		/** This thread's model copies (made on the thread the scratch is for). */
 		final ModelCopies.Mine copies = ModelCopies.mine();
 	}
@@ -539,6 +542,36 @@ final class CrowdFrame {
 		Workers.runAll(chunks);
 	}
 
+	/** -Dpolonium.checkPoses=true: each player's pose worked out directly ({@link HumanoidPoses}) checked against the game's. */
+	private static final boolean CHECK_POSES = Boolean.getBoolean("polonium.checkPoses");
+	private static final java.util.concurrent.atomic.AtomicLong POSES_CHECKED = new java.util.concurrent.atomic.AtomicLong();
+	private static final java.util.concurrent.atomic.AtomicLong POSES_DIFFERENT = new java.util.concurrent.atomic.AtomicLong();
+	private static volatile long posesReported = System.nanoTime();
+
+	private static void checkPose(net.minecraft.client.model.player.PlayerModel model, AvatarRenderState state, Scratch scratch) {
+		float[] mine = new float[HumanoidPoses.PARTS * HumanoidPoses.VALUES];
+		float[] game = new float[mine.length];
+		HumanoidPoses.pose(state, HumanoidPoses.rest(model), mine);
+		HumanoidPoses.read(model, game);
+		POSES_CHECKED.incrementAndGet();
+		for (int i = 0; i < mine.length; i++) {
+			if (Float.floatToIntBits(mine[i]) != Float.floatToIntBits(game[i])) {
+				if (POSES_DIFFERENT.incrementAndGet() < 20) {
+					org.slf4j.LoggerFactory.getLogger("Polonium").warn("Polonium pose check: part {} value {}: {} vs the game's {} (crouching {}, attack {} {}, arms {} {}, passenger {})",
+							i / HumanoidPoses.VALUES, i % HumanoidPoses.VALUES, mine[i], game[i], state.isCrouching, state.attackTime,
+							state.swingAnimationType, state.rightArmPose, state.leftArmPose, state.isPassenger);
+				}
+				break;
+			}
+		}
+		long now = System.nanoTime();
+		if (now - posesReported > 10_000_000_000L) {
+			posesReported = now;
+			org.slf4j.LoggerFactory.getLogger("Polonium").info("Polonium pose check: {} poses, {} different", POSES_CHECKED.getAndSet(0),
+					POSES_DIFFERENT.getAndSet(0));
+		}
+	}
+
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static void compute(int from, int to) {
 		Scratch scratch = SCRATCH.get();
@@ -548,6 +581,9 @@ final class CrowdFrame {
 			Matrix4f root = scratch.root.set(entityRoot, e * 16);
 			int light = entityLight[e];
 			ModelCopies.Copy anchor = null;
+			// The body drawn in the skeleton format without a posed copy: its hand worked out from its values.
+			boolean anchorValues = false;
+			boolean anchorSlim = false;
 			int end = entityFirstMember[e] + entityMemberCount[e];
 			for (int m = entityFirstMember[e]; m < end; m++) {
 				int t = memberTarget[m];
@@ -557,10 +593,41 @@ final class CrowdFrame {
 				if (memberEntry[m] instanceof CrowdRecipe.ModelEntry entry && entry.bucket.owner != null) {
 					// Posed exactly like the body: written by linkBorrowed, once the body's place is known.
 					continue;
+				} else if (memberEntry[m] instanceof CrowdRecipe.ModelEntry entry && targetMesh[t].skeleton) {
+					// The six moving parts' values (the GPU works out the matrices): straight from the state if it's a usual one.
+					ModelMesh mesh = targetMesh[t];
+					float[] values = scratch.skeleton;
+					ModelCopies.Copy copy = null;
+					int drawn;
+					if (HumanoidPoses.mode() == HumanoidPoses.DIRECT && HumanoidPoses.covers(state)) {
+						HumanoidPoses.pose(state, mesh.rest, values);
+						drawn = HumanoidPoses.drawn(mesh, state);
+					} else {
+						copy = scratch.copies.copy(entry.model, mesh.parts);
+						((Model) copy.model).setupAnim(state);
+						HumanoidPoses.read((net.minecraft.client.model.HumanoidModel<?>) copy.model, values);
+						drawn = HumanoidPoses.drawn(mesh, copy.parts);
+					}
+					int entryLight = entry.lightFromState ? light : entry.light;
+					for (; t >= 0; t = targetNext[t]) {
+						PartPoses.writeSkeleton(entry.color, entry.overlay, entryLight, targetUv[t], root, drawn, values, targetData[t].array(),
+								targetOffset[t] * 4);
+					}
+					if (entry.model == anchorModel) {
+						anchor = copy;
+						anchorValues = copy == null;
+						if (anchorValues) {
+							System.arraycopy(values, 0, scratch.anchorSkeleton, 0, values.length);
+							anchorSlim = ((com.arcticlauncher.polonium.mixin.PlayerModelAccess) entry.model).polonium$slim();
+						}
+					}
 				} else if (memberEntry[m] instanceof CrowdRecipe.ModelEntry entry) {
 					ModelMesh mesh = targetMesh[t];
 					ModelCopies.Copy copy = scratch.copies.copy(entry.model, mesh.parts);
 					((Model) copy.model).setupAnim(state);
+					if (CHECK_POSES && copy.model instanceof net.minecraft.client.model.player.PlayerModel player && HumanoidPoses.covers(state)) {
+						checkPose(player, state, scratch);
+					}
 					if (scratch.parts.length < copy.parts.length * PartPoses.VALUES_PER_PART) {
 						scratch.parts = new float[copy.parts.length * PartPoses.VALUES_PER_PART];
 					}
@@ -573,11 +640,17 @@ final class CrowdFrame {
 					if (entry.model == anchorModel) {
 						anchor = copy;
 					}
-				} else if (memberEntry[m] instanceof CrowdRecipe.ItemEntry entry && anchor != null) {
+				} else if (memberEntry[m] instanceof CrowdRecipe.ItemEntry entry && (anchor != null || anchorValues)) {
 					// The hand as the game places it this frame (the copy is posed), then the item as recorded relative to it.
-					scratch.hand.last().pose().set(root);
-					((ArmedModel) anchor.model).translateToHand(state, entry.arm, scratch.hand);
-					Matrix4f pose = scratch.item.set(scratch.hand.last().pose()).mul(entry.local);
+					Matrix4f pose;
+					if (anchor != null) {
+						scratch.hand.last().pose().set(root);
+						((ArmedModel) anchor.model).translateToHand(state, entry.arm, scratch.hand);
+						pose = scratch.item.set(scratch.hand.last().pose()).mul(entry.local);
+					} else {
+						HumanoidPoses.hand(root, scratch.anchorSkeleton, entry.arm, anchorSlim, scratch.item);
+						pose = scratch.item.mul(entry.local);
+					}
 					int entryLight = entry.lightFromState ? light : entry.light;
 					for (; t >= 0; t = targetNext[t]) {
 						GpuItems.write(targetData[t].array(), targetOffset[t] * 4, entry.overlay, entryLight, pose, entry.tints);
@@ -606,6 +679,7 @@ final class CrowdFrame {
 			Model<?> anchorModel = entityRecipe[e].renderer.getModel();
 			int light = entityLight[e];
 			int anchorParts = -1;
+			boolean anchorSkeleton = false;
 			int end = entityFirstMember[e] + entityMemberCount[e];
 			for (int m = entityFirstMember[e]; m < end; m++) {
 				int t = memberTarget[m];
@@ -614,12 +688,13 @@ final class CrowdFrame {
 				}
 				if (entry.model == anchorModel && entry.bucket.owner == null) {
 					anchorParts = targetData[t].base + targetOffset[t] + PartPoses.HEADER_TEXELS;
+					anchorSkeleton = targetMesh[t] != null && targetMesh[t].skeleton;
 				} else if (entry.bucket.owner != null) {
 					// Transparent if the body isn't drawn.
 					int entryLight = entry.lightFromState ? light : entry.light;
 					int color = anchorParts >= 0 ? entry.color : 0;
 					for (; t >= 0; t = targetNext[t]) {
-						PartPoses.writeBorrowed(color, entry.overlay, entryLight, targetUv[t], Math.max(anchorParts, 0), targetData[t].array(),
+						PartPoses.writeBorrowed(color, entry.overlay, entryLight, targetUv[t], Math.max(anchorParts, 0), anchorSkeleton, targetData[t].array(),
 								targetOffset[t] * 4);
 					}
 				}

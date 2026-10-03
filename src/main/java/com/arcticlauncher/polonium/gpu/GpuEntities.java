@@ -19,6 +19,9 @@ public final class GpuEntities {
 	private final Map<Model<?>, ModelMesh> meshes = new IdentityHashMap<>();
 	/** Shapes drawn with another model's poses (see {@link ModelMesh#borrowing}), by (model, owner). */
 	private final Map<java.util.List<Model<?>>, ModelMesh> borrowedMeshes = new java.util.HashMap<>();
+	/** Shapes in the skeleton format ({@link ModelMesh#skeleton}), and models that can't have one. */
+	private final Map<Model<?>, ModelMesh> skeletonMeshes = new IdentityHashMap<>();
+	private final java.util.Set<Model<?>> noSkeleton = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 	private final PartPoses poses = new PartPoses();
 	private final SkinAtlas atlas = new SkinAtlas();
 	/** The texture itself: no offset, full scale. */
@@ -31,6 +34,7 @@ public final class GpuEntities {
 	private final GpuBatches batches = new GpuBatches("entity models", () -> {
 		GpuBatches.evictIdle(meshes, batches().frame());
 		GpuBatches.evictIdle(borrowedMeshes, batches().frame());
+		GpuBatches.evictIdle(skeletonMeshes, batches().frame());
 	});
 
 	public GpuEntities() {
@@ -154,7 +158,7 @@ public final class GpuEntities {
 			return;
 		}
 		try {
-			ModelMesh mesh = group.owner == null ? mesh(group.model) : borrowedMesh(group);
+			ModelMesh mesh = group.owner == null ? crowdMesh(group.model) : borrowedMesh(group);
 			if (group.renderType.hasBlending()) {
 				CrowdFrame.sortFarToNear(group.members);
 			}
@@ -446,8 +450,28 @@ public final class GpuEntities {
 		java.util.List<Model<?>> key = java.util.List.of(bucket.model, bucket.owner);
 		ModelMesh mesh = borrowedMeshes.get(key);
 		if (mesh == null) {
-			mesh = ModelMesh.borrowing(bucket.model, bucket.borrowIndex);
+			// Tagged with the owner's moving parts if the owner is drawn in the skeleton format.
+			ModelMesh owner = crowdMesh(bucket.owner);
+			mesh = ModelMesh.borrowing(bucket.model, bucket.borrowIndex, owner.skeleton ? ModelMesh.slots(bucket.owner) : null);
 			borrowedMeshes.put(key, mesh);
+		}
+		return mesh;
+	}
+
+	/** A crowd body's shape: in the skeleton format if it can be (a player model, no other mod changing its posing). */
+	private ModelMesh crowdMesh(Model<?> model) {
+		if (!HumanoidPoses.allowed() || !(model instanceof net.minecraft.client.model.player.PlayerModel)
+				|| model.getClass() != net.minecraft.client.model.player.PlayerModel.class || noSkeleton.contains(model)) {
+			return mesh(model);
+		}
+		ModelMesh mesh = skeletonMeshes.get(model);
+		if (mesh == null) {
+			mesh = ModelMesh.buildSkeleton((net.minecraft.client.model.player.PlayerModel) model);
+			if (mesh == null) {
+				noSkeleton.add(model);
+				return mesh(model);
+			}
+			skeletonMeshes.put(model, mesh);
 		}
 		return mesh;
 	}

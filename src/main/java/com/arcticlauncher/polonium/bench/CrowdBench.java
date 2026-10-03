@@ -249,6 +249,7 @@ public final class CrowdBench implements ClientModInitializer {
 			float yaw = (float) Math.toDegrees(angle) + 180;
 			double y = GROUND;
 			float headYaw = yaw;
+			float pitch = 0;
 			if (ACTIVE) {
 				// Jumping now and then, sprinting, looking about (as players and bots do).
 				int phase = (steps[i] + i) % 24;
@@ -257,8 +258,16 @@ public final class CrowdBench implements ClientModInitializer {
 				}
 				player.setSprinting(phase % 12 < 6);
 				headYaw = yaw + (float) (Math.sin(steps[i] * 0.7 + i) * 60);
+				// Crouching, swinging and looking up and down too.
+				boolean crouching = phase >= 16 && phase < 20;
+				player.setShiftKeyDown(crouching);
+				player.setPose(crouching ? net.minecraft.world.entity.Pose.CROUCHING : net.minecraft.world.entity.Pose.STANDING);
+				if (phase == 8 || phase == 14) {
+					player.swing(phase == 8 ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND);
+				}
+				pitch = (float) (Math.sin(steps[i] * 0.3 + i) * 50);
 			}
-			player.moveOrInterpolateTo(new net.minecraft.world.phys.Vec3(x, y, z), yaw, 0);
+			player.moveOrInterpolateTo(new net.minecraft.world.phys.Vec3(x, y, z), yaw, pitch);
 			player.lerpHeadTo(headYaw, 3);
 		}
 	}

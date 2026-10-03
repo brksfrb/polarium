@@ -38,6 +38,7 @@
 		"MinecraftTimelineMixin",
 		"ByClassLookupMixin",
 		"LivingEntityRendererAccess",
+		"PlayerModelAccess",
 		"ItemInHandLayerMixin",
 		"LevelRendererCrowdMixin",
 		"ItemStackRenderStateAccess",
