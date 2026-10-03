@@ -446,7 +446,7 @@ public final class GpuBatches implements GpuFeature {
 	private void report(int entities, int draws) {
 		String what = label;
 		long now = System.nanoTime();
-		if (entities > 0 && now - lastReport > REPORT_NANOS) {
+		if (com.arcticlauncher.polonium.Timeline.REPORTS && entities > 0 && now - lastReport > REPORT_NANOS) {
 			lastReport = now;
 			LOG.info("Polonium: {} {} in {} GPU draws this frame", entities, what, draws);
 		}

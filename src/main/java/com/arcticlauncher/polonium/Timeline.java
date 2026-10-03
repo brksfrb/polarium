@@ -7,6 +7,8 @@ package com.arcticlauncher.polonium;
  */
 public final class Timeline {
 	public static final boolean ON = Boolean.getBoolean("polonium.debugTimeline");
+	/** -Dpolonium.debugReports=true (or the timeline): every 10 s, how many entities took how many draws, and why some didn't. */
+	public static final boolean REPORTS = ON || Boolean.getBoolean("polonium.debugReports");
 
 	public enum Step {
 		FRAME, RUN_TICK, RENDER_FRAME, GUI_UPDATE, LEVEL_UPDATE, CAMERA_UPDATE, PENDING_TASKS, RUN_TASKS, TICK, PICK, ACQUIRE, BLIT, SUBMIT, PRESENT, TICK_ENTITIES, PARALLEL_TICKS, EXTRACT, EXTRACT_ENTITIES, EXTRACT_JOIN, RENDER, SUBMIT_ENTITIES, CROWD_BULK, CROWD_END,

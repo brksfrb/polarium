@@ -679,7 +679,7 @@ public final class Crowd {
 	private static void report() {
 		long now = System.nanoTime();
 		int entityCount = CrowdFrame.entityCount;
-		if (entityCount == 0 && UNSUPPORTED.isEmpty() || now - lastReport < REPORT_NANOS) {
+		if (!com.arcticlauncher.polonium.Timeline.REPORTS || entityCount == 0 && UNSUPPORTED.isEmpty() || now - lastReport < REPORT_NANOS) {
 			return;
 		}
 		lastReport = now;

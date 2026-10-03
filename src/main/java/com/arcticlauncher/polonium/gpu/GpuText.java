@@ -589,7 +589,7 @@ public final class GpuText implements GpuFeature {
 			spare.addAll(group);
 		}
 		long now = System.nanoTime();
-		if (tags.texels() > 0 && now - lastReport > 10_000_000_000L) {
+		if (com.arcticlauncher.polonium.Timeline.REPORTS && tags.texels() > 0 && now - lastReport > 10_000_000_000L) {
 			lastReport = now;
 			org.slf4j.LoggerFactory.getLogger("Polonium").info(
 					"Polonium: {} name tags in {} GPU draws this frame ({} glyph vertices kept, {} placed in the last 10 s)",
