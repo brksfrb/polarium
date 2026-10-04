@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.1
+
+- Fix: waiting for the GPU before reusing a buffer (new in 0.28.0) could
+  wait forever if the GPU never reported a pass done, hanging the game. It
+  now waits at most 50 ms, then uses fresh buffers instead.
+
 ## 0.28.0
 
 - **Faster everyday frames, not just crowds.** GUI text is cheaper: text

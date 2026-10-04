@@ -13,7 +13,8 @@ import com.mojang.blaze3d.systems.RenderSystem;
  * of its own besides the world.
  */
 final class FrameFences {
-	private static final long WAIT_NANOS = 1_000_000_000L;
+	/** Waited at most this long; past it, the slot gets new buffers instead (nothing ever waits on the GPU for long). */
+	private static final long WAIT_NANOS = 50_000_000L;
 	/** Off with -Dpolarium.fences=false (to compare). */
 	private static final boolean ON = !"false".equals(System.getProperty("polarium.fences"));
 	private final GpuFence[] fences;
@@ -24,9 +25,10 @@ final class FrameFences {
 
 	/**
 	 * Before writing a slot's buffers: wait for the GPU to finish the pass
-	 * that last read them. False if that pass is in this very frame (not
-	 * sent to the GPU yet, so it can't be waited for): then the caller gives
-	 * the slot new buffers (the old ones are freed once drawn from).
+	 * that last read them, for a short while. False if that pass is in this
+	 * very frame (not sent to the GPU yet, so it can't be waited for) or the
+	 * GPU isn't done within {@link #WAIT_NANOS}: then the caller gives the
+	 * slot new buffers (the old ones are freed once drawn from).
 	 */
 	boolean await(int slot) {
 		GpuFence fence = fences[slot];
@@ -36,18 +38,15 @@ final class FrameFences {
 		if (fence == null) {
 			return true;
 		}
+		boolean done;
 		try {
-			while (!fence.awaitCompletion(WAIT_NANOS)) {
-				// A very slow frame: keep waiting rather than write over what's being drawn.
-			}
+			done = fence.awaitCompletion(WAIT_NANOS);
 		} catch (IllegalStateException e) {
-			fence.close();
-			fences[slot] = null;
-			return false;
+			done = false;
 		}
 		fence.close();
 		fences[slot] = null;
-		return true;
+		return done;
 	}
 
 	/** After this pass's draws from a slot were sent to the GPU. */
