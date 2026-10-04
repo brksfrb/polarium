@@ -21,6 +21,19 @@ abstract class EntityKeptStateMixin implements KeptStates.Holder {
 	@Unique
 	private boolean polarium$touched;
 	@Unique
+	private Object polarium$tagTick;
+
+	@Override
+	public Object polarium$tagTick() {
+		return polarium$tagTick;
+	}
+
+	@Override
+	public void polarium$tagTick(Object kept) {
+		polarium$tagTick = kept;
+	}
+
+	@Unique
 	private int polarium$keptTick = -1;
 	@Unique
 	private long polarium$inputs = Long.MIN_VALUE;

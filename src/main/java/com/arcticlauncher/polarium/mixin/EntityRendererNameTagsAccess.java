@@ -12,5 +12,11 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface EntityRendererNameTagsAccess {
 	@Invoker("extractNameTags")
 	void polarium$extractNameTags(Entity entity, EntityRenderState state, float partialTicks, double nameTagDistance, double belowNameDistance);
+
+	@Invoker("shouldShowName")
+	boolean polarium$shouldShowName(Entity entity, double distanceToCameraSq);
+
+	@Invoker("getNameTag")
+	net.minecraft.network.chat.@org.jspecify.annotations.Nullable Component polarium$getNameTag(Entity entity);
 }
 //#endif

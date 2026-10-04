@@ -76,7 +76,7 @@ Polarium looks at what other mods change before taking anything over:
 
 - With a shaders mod (Iris, Oculus) or a mod that changes entity models
   (Entity Model Features, Figura) installed, entity models stay on the game's
-  renderer; the rest still applies.
+  renderer; the rest still applies. A notice in game says so once it's loaded.
 - Another mod hooking how player render states are made each frame turns
   kept states off (logged), unless Polarium knows the hook. Mods can do their
   per-frame work themselves through a `polarium:light_state` entrypoint (a

@@ -7,6 +7,12 @@ it: no lower detail far away, no skipped animation frames, no lost features.
 Made for big servers, events, arenas, lobbies and bot tests: anywhere
 hundreds or thousands of players are on screen at once.
 
+> **⚠️ Shaders (Iris, Oculus) turn off Polarium's biggest speed-up.** With a
+> shaders mod installed, even with shader packs off, players are drawn the
+> game's usual way and big crowds stay slow; only the multi-threading below
+> still applies. The same goes for Entity Model Features and Figura. Polarium
+> shows a notice in game when this happens.
+
 ## How fast?
 
 Crowd benchmark: players walking about, each with its own skin, armor, held
@@ -39,9 +45,10 @@ Jade, AppleSkin, Mod Menu): 1,000 players 33 → ~130 FPS.
 Works alongside Sodium, Lithium, EntityCulling, ImmediatelyFast, FerriteCore,
 Entity Texture Features, Emotecraft, Not Enough Animations, 3D Skin Layers,
 Wavey Capes, Simple Voice Chat and more. Polarium checks what other mods
-change and steps aside where it can't be sure: with a shaders mod (Iris) or an
-entity model mod (Entity Model Features, Figura), entity models stay on the
-game's renderer and the rest still applies.
+change and steps aside where it can't be sure: with a shaders mod (Iris,
+Oculus) or an entity model mod (Entity Model Features, Figura), entity models
+stay on the game's renderer (the GPU path is off) and the rest still applies.
+A notice in game says so.
 
 No Fabric API needed. Client-side only: works on any server.
 

@@ -56,6 +56,12 @@ public final class Timeline {
 			line.append(String.format(java.util.Locale.ROOT, " helpers (thread-ms per frame): extract jobs %.2f, visible %.2f, made %.2f;",
 					ParallelExtract.JOB_NANOS.sumThenReset() / 1e6 / frames, ParallelExtract.VISIBLE_NANOS.sumThenReset() / 1e6 / frames,
 					ParallelExtract.MADE_NANOS.sumThenReset() / 1e6 / frames));
+			line.append(" bringing up (thread-ms per frame):");
+			for (int i = 0; i < LightStates.UP_NAMES.length; i++) {
+				line.append(String.format(java.util.Locale.ROOT, " %s %.2f", LightStates.UP_NAMES[i], LightStates.UP_NANOS.getAndSet(i, 0) / 1e6 / frames));
+			}
+			line.append(String.format(java.util.Locale.ROOT, "; extraction hook %.2f, tick inputs %.2f;", LightStates.HOOK_NANOS.sumThenReset() / 1e6 / frames,
+					LightStates.INPUTS_NANOS.sumThenReset() / 1e6 / frames));
 			long fullCount = ParallelExtract.FULL_COUNT.sumThenReset();
 			line.append(String.format(java.util.Locale.ROOT, " made in full: %.2f thread-ms per frame, %.1f us each;",
 					ParallelExtract.FULL_NANOS.sum() / 1e6 / frames, fullCount == 0 ? 0 : ParallelExtract.FULL_NANOS.sumThenReset() / 1e3 / fullCount));

@@ -213,8 +213,13 @@ public final class LightStates {
 	 */
 	private static boolean carriesOver(Avatar avatar, KeptStates.Holder holder) {
 		long inputs = holder.polarium$inputs();
-		if (!CARRY_OVER || inputs == TickInputs.NEVER || avatar.tickCount - holder.polarium$fullTick() >= KeptStates.COPY_TICKS
-				|| avatar.tickCount < holder.polarium$fullTick() || TickInputs.of(avatar) != inputs) {
+		long start = Timeline.ON ? System.nanoTime() : 0;
+		boolean changed = !CARRY_OVER || inputs == TickInputs.NEVER || avatar.tickCount - holder.polarium$fullTick() >= KeptStates.COPY_TICKS
+				|| avatar.tickCount < holder.polarium$fullTick() || TickInputs.of(avatar) != inputs;
+		if (start != 0) {
+			INPUTS_NANOS.add(System.nanoTime() - start);
+		}
+		if (changed) {
 			if (TickInputs.DEBUG && inputs != TickInputs.NEVER) {
 				TickInputs.debug(avatar, false);
 			}
@@ -299,6 +304,8 @@ public final class LightStates {
 	 * is as it was made on this tick.
 	 */
 	public static void bringUp(EntityRenderer<?, ?> renderer, Avatar entity, AvatarRenderState state, float partialTicks) {
+		boolean timed = Timeline.ON;
+		long t0 = timed ? System.nanoTime() : 0;
 		// EntityRenderer
 		state.x = Mth.lerp(partialTicks, entity.xOld, entity.getX());
 		state.y = Mth.lerp(partialTicks, entity.yOld, entity.getY());
@@ -306,12 +313,16 @@ public final class LightStates {
 		state.ageInTicks = entity.tickCount + partialTicks;
 		// As on a new state: the game only sets where the tag goes when it shows one.
 		state.nameTagAttachment = null;
-		((LivingEntityRendererAccess) renderer).polarium$extractLivingNameTags(entity, state, partialTicks);
+		long t1 = timed ? System.nanoTime() : 0;
+		AttributeValues.Holder2 distances = (AttributeValues.Holder2) entity;
+		NameTagTicks.extract(renderer, entity, state, partialTicks, distances.polarium$nameDistance(), distances.polarium$belowNameDistance());
+		long t2 = timed ? System.nanoTime() : 0;
 		boolean appearsGlowing = Minecraft.getInstance().shouldEntityAppearGlowing(entity);
 		state.outlineColor = appearsGlowing ? ARGB.opaque(entity.getTeamColor()) : 0;
 		@SuppressWarnings({"unchecked", "rawtypes"})
 		int light = ((EntityRenderer) renderer).getPackedLightCoords(entity, partialTicks);
 		state.lightCoords = light;
+		long t3 = timed ? System.nanoTime() : 0;
 		// LivingEntityRenderer
 		float headRot = Mth.rotLerp(partialTicks, entity.yHeadRotO, entity.yHeadRot);
 		state.bodyRot = LivingEntityRendererAccess.polarium$solveBodyRot(entity, headRot, partialTicks);
@@ -340,12 +351,36 @@ public final class LightStates {
 		// ArmedEntityRenderState
 		state.attackTime = entity.getAttackAnim(partialTicks);
 		// AvatarRenderer
+		long t4 = timed ? System.nanoTime() : 0;
 		AvatarRendererLightAccess avatar = (AvatarRendererLightAccess) renderer;
-		avatar.polarium$extractFlightData(entity, state, partialTicks);
-		avatar.polarium$extractCapeState(entity, state, partialTicks);
+		// Read only while gliding (the body's turn) and by a shown cape: left as they were otherwise.
+		if (state.isFallFlying) {
+			avatar.polarium$extractFlightData(entity, state, partialTicks);
+		}
+		if (state.showCape && state.skin.cape() != null) {
+			avatar.polarium$extractCapeState(entity, state, partialTicks);
+		}
+		long t5 = timed ? System.nanoTime() : 0;
 		for (BiConsumer<Object, Object> hook : hooks) {
 			hook.accept(entity, state);
 		}
+		if (timed) {
+			long t6 = System.nanoTime();
+			UP_NANOS.addAndGet(0, t1 - t0);
+			UP_NANOS.addAndGet(1, t2 - t1);
+			UP_NANOS.addAndGet(2, t3 - t2);
+			UP_NANOS.addAndGet(3, t4 - t3);
+			UP_NANOS.addAndGet(4, t5 - t4);
+			UP_NANOS.addAndGet(5, t6 - t5);
+		}
 	}
+
+	/** With the timeline: time in bringing up, by part (place, name tags, glow and light, turn and walk, flight and cape, hooks). */
+	public static final java.util.concurrent.atomic.AtomicLongArray UP_NANOS = new java.util.concurrent.atomic.AtomicLongArray(6);
+	/** With the timeline: time comparing a player's tick inputs (TickInputs) on its new ticks. */
+	public static final java.util.concurrent.atomic.LongAdder INPUTS_NANOS = new java.util.concurrent.atomic.LongAdder();
+	/** With the timeline: time in the extraction hook (the check, then bringing up or making in full). */
+	public static final java.util.concurrent.atomic.LongAdder HOOK_NANOS = new java.util.concurrent.atomic.LongAdder();
+	public static final String[] UP_NAMES = {"place", "tags", "light", "turn", "cape", "hooks"};
 }
 //#endif

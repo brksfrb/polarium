@@ -49,6 +49,7 @@ public final class GpuBatches implements GpuFeature {
 	/** Meshes unused for this many frames are freed (models from a resource reload, say). */
 	static final long MESH_IDLE_FRAMES = 600;
 	private static final int FRAMES_IN_FLIGHT = 3;
+	private final FrameFences fences = new FrameFences(FRAMES_IN_FLIGHT);
 	private static volatile boolean disabled = SHADER_MOD || MODEL_MOD;
 	private static boolean announced;
 
@@ -294,6 +295,10 @@ public final class GpuBatches implements GpuFeature {
 			return;
 		}
 		int slot = slot();
+		if (!fences.await(slot)) {
+			instanceBuffers[slot] = closed(instanceBuffers[slot]);
+			drawBuffers[slot] = closed(drawBuffers[slot]);
+		}
 		instanceBuffers[slot] = ensure(device, instanceBuffers[slot], texels * 16,
 				GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER | GpuBuffer.USAGE_MAP_WRITE, "Polarium entity instances");
 		drawBuffers[slot] = ensure(device, drawBuffers[slot], drawBytes,
@@ -312,6 +317,14 @@ public final class GpuBatches implements GpuFeature {
 		} finally {
 			MemoryUtil.memFree(drawBytesBuffer);
 		}
+	}
+
+	/** Null, after closing {@code buffer} if there was one. */
+	static @Nullable GpuBuffer closed(@Nullable GpuBuffer buffer) {
+		if (buffer != null) {
+			buffer.close();
+		}
+		return null;
 	}
 
 	/** Copies bigger than this (in floats) are split over the helper threads. */
@@ -431,6 +444,9 @@ public final class GpuBatches implements GpuFeature {
 			spare.addAll(group);
 		}
 		report(entities, draws);
+		if (uploaded) {
+			fences.mark(slot());
+		}
 		afterFrame.run();
 		groups.clear();
 		prepared.clear();
@@ -483,6 +499,20 @@ public final class GpuBatches implements GpuFeature {
 					: MODEL_MOD ? "Polarium: a mod that changes entity models is installed; they stay on the game's renderer"
 					: "Polarium: entity models drawn on the GPU");
 		}
+	}
+
+	/**
+	 * The mod that keeps entity models off the GPU, by its name (null: none).
+	 * Shown to the player once (see StepAsideNoticeMixin).
+	 */
+	public static @Nullable String steppedAsideFor() {
+		for (String id : SHADER_MOD ? new String[] {"iris", "oculus"} : MODEL_MOD ? new String[] {"entity_model_features", "figura"} : new String[0]) {
+			var mod = FabricLoader.getInstance().getModContainer(id);
+			if (mod.isPresent()) {
+				return mod.get().getMetadata().getName();
+			}
+		}
+		return null;
 	}
 
 	private static boolean loaded(String... ids) {

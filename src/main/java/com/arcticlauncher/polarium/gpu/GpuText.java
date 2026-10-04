@@ -75,6 +75,7 @@ public final class GpuText implements GpuFeature {
 	private static final Identifier GAME_TEXT = Identifier.withDefaultNamespace("core/text");
 	private static final Identifier GAME_BACKGROUND = Identifier.withDefaultNamespace("core/text_background");
 	private static final int FRAMES_IN_FLIGHT = 3;
+	private final FrameFences fences = new FrameFences(FRAMES_IN_FLIGHT);
 	private static final boolean ENABLED = !"false".equals(System.getProperty("polarium.gpuText"));
 
 	/** Whether name tags go to the GPU at all. */
@@ -181,7 +182,16 @@ public final class GpuText implements GpuFeature {
 	 * run records. What can't be shared (placing new runs in the glyph pool,
 	 * setting up batches) happens on this thread in between.
 	 */
-	public void captureMany(int count, GlyphRuns.Run[][] runs, int[] order, float[] poses, int[] lights) {
+	/** Where a list's tags' runs come from (see CrowdTags#draw). */
+	public interface RunSource {
+		/** The tag's runs if laid out already, else null (read-only: safe on any thread). */
+		GlyphRuns.Run @Nullable [] kept(int k);
+
+		/** The tag's runs, laid out now (render thread). */
+		GlyphRuns.Run[] layOut(int k);
+	}
+
+	public void captureMany(int count, GlyphRuns.Run[][] runs, int[] order, float[] poses, int[] lights, RunSource source) {
 		List<Batch> group = current;
 		if (!ENABLED || group == null || GpuBatches.disabled() || count == 0) {
 			return;
@@ -197,16 +207,37 @@ public final class GpuText implements GpuFeature {
 			}
 			boolean[] ready = new boolean[count];
 			int parts = count < BULK_PARALLEL_MIN ? 1 : com.arcticlauncher.polarium.Workers.PARTS;
-			// 1. Which tags have everything in place already (most, every frame after the first).
+			int knownTypes = batches.size();
+			// 1. Each tag's kept runs, whether everything is in place already (most, every frame after the
+			// first), and per part how many tags and runs per batch: in one pass on the helpers.
+			int[][] perBatch = new int[parts][knownTypes];
+			int[] tagsIn = new int[parts];
+			int[][] longest = new int[parts][knownTypes];
 			runParts(parts, count, (from, to) -> {
+				int part = partOf(from, count, parts);
 				for (int i = from; i < to; i++) {
+					if (runs[i] == null) {
+						runs[i] = source.kept(i);
+					}
 					ready[i] = runs[i] != null && placedAndKnown(runs[i], typeIndex);
+					if (ready[i]) {
+						tagsIn[part]++;
+						for (GlyphRuns.Run run : runs[i]) {
+							int b = typeIndex.get(run.type());
+							perBatch[part][b]++;
+							longest[part][b] = Math.max(longest[part][b], run.vertexCount());
+						}
+					}
 				}
 			});
-			// 2. The rest, here: place their runs, set up their batches.
+			// 2. The rest, here: lay out new texts, place their runs, set up their batches.
+			boolean more = false;
 			for (int i = 0; i < count; i++) {
-				if (ready[i] || runs[i] == null) {
+				if (ready[i]) {
 					continue;
+				}
+				if (runs[i] == null) {
+					runs[i] = source.layOut(i);
 				}
 				boolean ok = true;
 				for (GlyphRuns.Run run : runs[i]) {
@@ -226,30 +257,36 @@ public final class GpuText implements GpuFeature {
 					});
 				}
 				ready[i] = true;
+				more = true;
 			}
-			// typeIndex may have been filled in only now: index every ready tag's runs again below.
 			int types = batches.size();
 			if (types == 0) {
 				return;
 			}
-			// 3. Per part: how many tags, and how many runs per batch.
-			int[][] perBatch = new int[parts][types];
-			int[] tagsIn = new int[parts];
-			int[][] longest = new int[parts][types];
-			runParts(parts, count, (from, to) -> {
-				int part = partOf(from, count, parts);
-				for (int i = from; i < to; i++) {
-					if (!ready[i]) {
-						continue;
+			int[][] perBatchFinal = perBatch;
+			int[][] longestFinal = longest;
+			if (more) {
+				// 3. Some made ready here (or new batches): count again, all of them.
+				java.util.Arrays.fill(tagsIn, 0);
+				int[][] counted = new int[parts][types];
+				int[][] longestCounted = new int[parts][types];
+				runParts(parts, count, (from, to) -> {
+					int part = partOf(from, count, parts);
+					for (int i = from; i < to; i++) {
+						if (!ready[i]) {
+							continue;
+						}
+						tagsIn[part]++;
+						for (GlyphRuns.Run run : runs[i]) {
+							int b = typeIndex.get(run.type());
+							counted[part][b]++;
+							longestCounted[part][b] = Math.max(longestCounted[part][b], run.vertexCount());
+						}
 					}
-					tagsIn[part]++;
-					for (GlyphRuns.Run run : runs[i]) {
-						int b = typeIndex.get(run.type());
-						perBatch[part][b]++;
-						longest[part][b] = Math.max(longest[part][b], run.vertexCount());
-					}
-				}
-			});
+				});
+				perBatchFinal = counted;
+				longestFinal = longestCounted;
+			}
 			// 4. Room for all of it; each part's place in it.
 			int firstTag = tags.texels() / TEXELS_PER_TAG;
 			int totalTags = 0;
@@ -265,8 +302,8 @@ public final class GpuText implements GpuFeature {
 				int at = batch.count;
 				for (int p = 0; p < parts; p++) {
 					itemAt[p][b] = at;
-					at += perBatch[p][b];
-					batch.maxVertices = Math.max(batch.maxVertices, longest[p][b]);
+					at += perBatchFinal[p][b];
+					batch.maxVertices = Math.max(batch.maxVertices, longestFinal[p][b]);
 				}
 				if (at * 3 > batch.items.length) {
 					batch.items = Arrays.copyOf(batch.items, Math.max(batch.items.length * 2, at * 3));
@@ -462,6 +499,10 @@ public final class GpuText implements GpuFeature {
 			return;
 		}
 		ensureSlots(device, maxVertices);
+		if (!fences.await(slot)) {
+			itemBuffers[slot] = GpuBatches.closed(itemBuffers[slot]);
+			tagBuffers[slot] = GpuBatches.closed(tagBuffers[slot]);
+		}
 		itemBuffers[slot] = ensure(device, itemBuffers[slot], itemBytes, GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE, "Polarium name tag runs");
 		long tagBytes = (long) tags.texels() * 16;
 		tagBuffers[slot] = ensure(device, tagBuffers[slot], tagBytes,
@@ -607,6 +648,9 @@ public final class GpuText implements GpuFeature {
 		prepared.clear();
 		tags.clear();
 		current = null;
+		if (uploaded) {
+			fences.mark((int) (frame % FRAMES_IN_FLIGHT));
+		}
 		uploaded = false;
 		frame++;
 	}

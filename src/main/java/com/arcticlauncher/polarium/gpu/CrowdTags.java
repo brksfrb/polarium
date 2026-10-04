@@ -383,37 +383,26 @@ public final class CrowdTags {
 			}
 			int count = order.length;
 			GlyphRuns.Run[][] runs = new GlyphRuns.Run[count][];
-			// Kept runs, on the helper threads (most tags, every frame after their first).
-			int parts = count < 256 ? 1 : com.arcticlauncher.polarium.Workers.PARTS;
-			if (parts == 1) {
-				keptRuns(tags, order, runs, 0, count);
-			} else {
-				java.util.List<Runnable> jobs = new java.util.ArrayList<>(parts);
-				for (int p = 0; p < parts; p++) {
-					int from = count * p / parts;
-					int to = count * (p + 1) / parts;
-					jobs.add(() -> keptRuns(tags, order, runs, from, to));
-				}
-				com.arcticlauncher.polarium.Workers.runAll(jobs);
-			}
-			// New ones laid out here (fonts aren't safe on several threads).
-			for (int k = 0; k < count; k++) {
-				if (runs[k] == null) {
+			// Kept runs looked up on the helper threads while the rest is checked (most tags, every frame after their
+			// first); new ones laid out on this thread (fonts aren't safe on several).
+			GpuText.RunSource source = new GpuText.RunSource() {
+				@Override
+				public GlyphRuns.Run @org.jspecify.annotations.Nullable [] kept(int k) {
 					int i = order[k];
-					runs[k] = tags.look[i].runs(tags.way[i], tags.y[i], background, font);
+					return tags.look[i].kept(tags.way[i], tags.y[i], background);
 				}
-			}
-			gpu.captureMany(count, runs, order, tags.pose, tags.light);
-			} finally {
+
+				@Override
+				public GlyphRuns.Run[] layOut(int k) {
+					int i = order[k];
+					return tags.look[i].runs(tags.way[i], tags.y[i], background, font);
+				}
+			};
+			gpu.captureMany(count, runs, order, tags.pose, tags.light, source);
+		} finally {
 			com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.PREP_TAGS);
 		}
 	}
 
-	private static void keptRuns(Tags tags, int[] order, GlyphRuns.Run[][] runs, int from, int to) {
-		for (int k = from; k < to; k++) {
-			int i = order[k];
-			runs[k] = tags.look[i].kept(tags.way[i], tags.y[i], background);
-		}
-	}
 }
 //#endif

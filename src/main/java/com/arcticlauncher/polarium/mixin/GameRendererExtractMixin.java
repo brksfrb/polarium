@@ -40,6 +40,7 @@ abstract class GameRendererExtractMixin {
 	private void polarium$frameDrawn(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
 		// The level's entity states in, whatever happened (no level drawn this frame, say).
 		ParallelExtract.finish();
+		com.arcticlauncher.polarium.PreparedTexts.newFrame();
 		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.RENDER);
 		com.arcticlauncher.polarium.Timeline.frame();
 	}

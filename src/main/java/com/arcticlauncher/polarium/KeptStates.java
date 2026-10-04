@@ -52,6 +52,11 @@ public final class KeptStates {
 
 		void polarium$madeInFull(int tick, long attributes);
 
+		/** What its name tag is made from on its current tick (see NameTagTicks), or null. */
+		Object polarium$tagTick();
+
+		void polarium$tagTick(Object kept);
+
 		/** The tick its kept state was last found good for (made in full, or carried over: see LightStates), or -1. */
 		int polarium$keptTick();
 

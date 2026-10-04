@@ -20,6 +20,18 @@ abstract class EntityRendererLightMixin {
 			at = @At(value = "INVOKE",
 					target = "Lnet/minecraft/client/renderer/entity/EntityRenderer;extractRenderState(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/entity/state/EntityRenderState;F)V"))
 	private void polarium$light(EntityRenderer<?, ?> self, Entity entity, EntityRenderState state, float partialTicks, Operation<Void> extract) {
+		long start = com.arcticlauncher.polarium.Timeline.ON ? System.nanoTime() : 0;
+		try {
+			polarium$lightOrFull(self, entity, state, partialTicks, extract);
+		} finally {
+			if (start != 0) {
+				LightStates.HOOK_NANOS.add(System.nanoTime() - start);
+			}
+		}
+	}
+
+	private static void polarium$lightOrFull(EntityRenderer<?, ?> self, Entity entity, EntityRenderState state, float partialTicks,
+			Operation<Void> extract) {
 		boolean kept = KeptStates.inLevel() && entity instanceof KeptStates.Holder holder && holder.polarium$keptState() == state
 				&& holder.polarium$keptStateRenderer() == self;
 		if (LightStates.light(self, entity, state, kept)) {

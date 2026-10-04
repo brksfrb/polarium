@@ -659,7 +659,7 @@ final class CrowdFrame {
 					float[] values = scratch.skeleton;
 					ModelCopies.Copy copy = null;
 					int drawn;
-					if (HumanoidPoses.mode() == HumanoidPoses.DIRECT && HumanoidPoses.covers(state)) {
+					if (HumanoidPoses.mode() == HumanoidPoses.DIRECT && HumanoidPoses.covers(state) && !HumanoidPoses.posedByOthers(state)) {
 						HumanoidPoses.pose(state, mesh.rest, values);
 						drawn = HumanoidPoses.drawn(mesh, state);
 					} else {

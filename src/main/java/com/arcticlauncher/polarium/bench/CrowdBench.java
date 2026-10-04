@@ -79,6 +79,8 @@ public final class CrowdBench implements ClientModInitializer {
 	private static final int GROUND = -60;
 	/** -Dpolarium.bench.wall=true: a stone wall across part of the close look, to check name tags seen through walls. */
 	private static final boolean WALL = Boolean.getBoolean("polarium.bench.wall");
+	/** -Dpolarium.bench.inventory=true: the close look with the inventory open (screenshots in a row, as with the wall). */
+	private static final boolean INVENTORY = Boolean.getBoolean("polarium.bench.inventory");
 	/** With the wall: how many screenshots in a row (40 ms apart). */
 	private static final int FLICKER_SHOTS = Integer.getInteger("polarium.bench.shots", 2);
 	/** Bigger crowds stand closer, so all of them stay within entity tracking and drawing range. */
@@ -471,8 +473,10 @@ public final class CrowdBench implements ClientModInitializer {
 		net.minecraft.client.server.IntegratedServer server = mc.getSingleplayerServer();
 		server.execute(() -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
 				"tp " + player + " -6 " + (GROUND + 5) + " -6 -45 30"));
-		if (WALL) {
+		if (WALL || INVENTORY) {
 			frozen = true;
+		}
+		if (WALL) {
 			// Hovering where it's put (not dropping into the crowd), and no chat over the shots.
 			mc.player.getAbilities().flying = true;
 			server.execute(() -> {
@@ -487,9 +491,17 @@ public final class CrowdBench implements ClientModInitializer {
 		TIMER.schedule(() -> run(() -> {
 			mc.player.setXRot(30);
 			mc.player.setYRot(-45);
+			if (INVENTORY) {
+				// The inventory over the crowd: it draws the player in a picture of its own besides the world.
+				//#if MC >= 26.2
+				mc.gui.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
+				//#else
+				mc.setScreen(new net.minecraft.client.gui.screens.inventory.InventoryScreen(mc.player));
+				//#endif
+			}
 		}), 2, TimeUnit.SECONDS);
 		TIMER.schedule(() -> run(() -> screenshot(mc)), 5, TimeUnit.SECONDS);
-		if (WALL) {
+		if (WALL || INVENTORY) {
 			// A run of frames, to catch anything that flickers.
 			for (int i = 1; i <= FLICKER_SHOTS; i++) {
 				TIMER.schedule(() -> run(() -> screenshot(mc)), 5000 + i * 40L, TimeUnit.MILLISECONDS);

@@ -90,7 +90,9 @@ final class HumanoidPoses {
 		if (!ENABLED) {
 			return OFF;
 		}
+		java.util.Map<String, java.util.function.Predicate<Object>> declared = posingEntrypoints();
 		java.util.Set<String> movingOnly = new java.util.TreeSet<>();
+		java.util.Set<String> movingOnlyMods = new java.util.TreeSet<>();
 		java.util.Set<String> others = new java.util.TreeSet<>();
 		for (java.util.Map.Entry<String, java.util.Set<String>> target : POSING.entrySet()) {
 			java.util.Set<org.spongepowered.asm.mixin.extensibility.IMixinInfo> mixins = com.arcticlauncher.polarium.MixinsOn.of(target.getKey());
@@ -104,7 +106,11 @@ final class HumanoidPoses {
 				}
 				for (String hooked : com.arcticlauncher.polarium.MixinsOn.hooks(mixin, target.getValue())) {
 					String hook = mod + " (" + target.getKey().substring(target.getKey().lastIndexOf('.') + 1) + "." + hooked + ")";
-					(MOVING_PARTS_ONLY.contains(mod) ? movingOnly : others).add(hook);
+					boolean moving = MOVING_PARTS_ONLY.contains(mod) || declared.containsKey(mod);
+					(moving ? movingOnly : others).add(hook);
+					if (moving) {
+						movingOnlyMods.add(mod);
+					}
 				}
 			}
 		}
@@ -114,11 +120,79 @@ final class HumanoidPoses {
 			return OFF;
 		}
 		if (!movingOnly.isEmpty()) {
-			log.info("Polarium: players' part matrices worked out on the GPU, posed by the game ({})", movingOnly);
-			return POSED;
+			// Each of these mods saying which players it poses: the rest are worked out directly.
+			java.util.List<java.util.function.Predicate<Object>> posers = new java.util.ArrayList<>();
+			for (String mod : movingOnlyMods) {
+				java.util.function.Predicate<Object> poser = declared.containsKey(mod) ? declared.get(mod)
+						: "player_animation_library".equals(mod) ? playerAnimationLibrary() : null;
+				if (poser == null) {
+					log.info("Polarium: players' part matrices worked out on the GPU, posed by the game ({})", movingOnly);
+					return POSED;
+				}
+				posers.add(poser);
+			}
+			POSERS = java.util.List.copyOf(posers);
+			log.info("Polarium: players' part matrices worked out on the GPU; posed by the game while {} pose them", movingOnlyMods);
+			return DIRECT;
 		}
 		log.info("Polarium: players' part matrices worked out on the GPU");
 		return DIRECT;
+	}
+
+	/** Other mods saying, per player, whether they pose it this frame (see {@link #posedByOthers}). */
+	private static java.util.List<java.util.function.Predicate<Object>> POSERS = java.util.List.of();
+
+	/**
+	 * Whether another mod poses this player this frame (an emote, an
+	 * animation): then the model's own setupAnim runs for it, with their
+	 * hooks. Mods declare it with a {@code polarium:posing} entrypoint, a
+	 * {@code Predicate<AvatarRenderState>}, safe on any thread; their hooks
+	 * into posing must only move the six moving parts.
+	 */
+	static boolean posedByOthers(AvatarRenderState state) {
+		for (java.util.function.Predicate<Object> poser : POSERS) {
+			if (poser.test(state)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static java.util.Map<String, java.util.function.Predicate<Object>> posingEntrypoints() {
+		java.util.Map<String, java.util.function.Predicate<Object>> out = new java.util.HashMap<>();
+		for (net.fabricmc.loader.api.entrypoint.EntrypointContainer<java.util.function.Predicate> c
+				: net.fabricmc.loader.api.FabricLoader.getInstance().getEntrypointContainers("polarium:posing", java.util.function.Predicate.class)) {
+			out.put(c.getProvider().getMetadata().getId(), c.getEntrypoint());
+		}
+		return out;
+	}
+
+	/** Player Animation Library: an animation is playing on this player (its animation manager is active). */
+	private static java.util.function.@org.jspecify.annotations.Nullable Predicate<Object> playerAnimationLibrary() {
+		try {
+			ClassLoader loader = HumanoidPoses.class.getClassLoader();
+			Class<?> holder = Class.forName("com.zigythebird.playeranim.accessors.IAvatarAnimationState", false, loader);
+			Class<?> manager = Class.forName("com.zigythebird.playeranim.animation.AvatarAnimManager", false, loader);
+			java.lang.invoke.MethodHandle get = java.lang.invoke.MethodHandles.publicLookup().findVirtual(holder,
+					"playerAnimLib$getAnimManager", java.lang.invoke.MethodType.methodType(manager));
+			java.lang.invoke.MethodHandle active = java.lang.invoke.MethodHandles.publicLookup().findVirtual(manager, "isActive",
+					java.lang.invoke.MethodType.methodType(boolean.class));
+			return state -> {
+				if (!holder.isInstance(state)) {
+					return false;
+				}
+				try {
+					Object m = get.invoke(state);
+					return m != null && (boolean) active.invoke(m);
+				} catch (Throwable e) {
+					// Can't tell: as if it does.
+					return true;
+				}
+			};
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			return null;
+		}
 	}
 
 	/** Whether {@link #pose} covers this state (else the model's own setupAnim is needed). */

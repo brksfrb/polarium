@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.28.0
+
+- **Faster everyday frames, not just crowds.** GUI text is cheaper: text
+  with no right-to-left characters skips the bidirectional analysis (same
+  result, checked against the game's), the scoreboard sidebar's lines are
+  kept between frames while they're unchanged, and text drawn again as the
+  same text at the same place reuses its laid-out glyphs. In a server lobby:
+  about +10% (1,270 to 1,390 FPS on an RTX 3080 Ti, i9-12900KF); limited to
+  two slow cores, about +4%.
+- A notice in game when a shaders mod (Iris, Oculus) or an entity model mod
+  keeps entity models off the GPU, so slow crowds there aren't a mystery.
+- Name tags: what decides them (shown, text, score) is worked out once per
+  tick; where they hang and the distance, every frame. Checked against the
+  game's on every frame.
+- Players' capes and flight are only brought up to the frame when shown or
+  gliding.
+- Mods that pose players only sometimes (emotes) can tell Polarium when
+  they do (a `polarium:posing` entrypoint); the rest of the time the GPU
+  poses those players. Player Animation Library is recognized.
+- GPU buffers are waited on before reuse when a frame draws the crowd more
+  than once (the inventory's player preview).
+
 ## 0.27.1
 
 - Fix a crash with a spinning compass (no target, another dimension, or a
