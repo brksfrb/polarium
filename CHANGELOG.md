@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.0
+
+- A server can find out Polarium is installed, so it can recommend it
+  (or skip a "slow crowds" warning). If the server lists the channel
+  `polarium:hello` among its plugin channels, Polarium answers once per
+  connection with `{"version":"<its version>"}` (plain UTF-8 JSON, no player
+  or computer data). A server that doesn't list the channel never hears
+  anything. No Fabric API needed. With Arctic Client installed, Arctic says
+  the hello for Polarium (only one mod can read the server's channel list).
+
 ## 0.28.1
 
 - Fix: waiting for the GPU before reusing a buffer (new in 0.28.0) could
