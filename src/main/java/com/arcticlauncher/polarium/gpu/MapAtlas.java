@@ -42,8 +42,8 @@ public final class MapAtlas {
 	private static final int MAX_PAGES = 8;
 	/** Sampling is kept this far inside a picture's edge (in pixels): no sample ever lands in the gap. */
 	private static final float INSET = 0.01f;
-	/** Off with -Dpolarium.mapAtlas=false: every map keeps its own draw. */
-	private static final boolean ENABLED = !"false".equals(System.getProperty("polarium.mapAtlas"));
+	/** On with -Dpolarium.mapAtlas=true; measured no faster than the game's own draws, so off. */
+	private static final boolean ENABLED = "true".equals(System.getProperty("polarium.mapAtlas"));
 
 	/** Where a map's picture is: the atlas texture to draw with, and its place in it (0 to 1). */
 	public record Place(Identifier atlas, float u, float v, float width, float height) {}

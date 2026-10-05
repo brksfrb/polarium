@@ -5,6 +5,7 @@
 	"plugin": "com.arcticlauncher.polarium.PolariumMixins",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
+		"ItemFrameModelMixin",
 		"MapRendererMixin",
 		"MapInstanceMixin",
 		"HelloCodecMixin",
