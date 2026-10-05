@@ -14,7 +14,7 @@
 	"icon": "assets/polarium/icon.png",
 	"environment": "client",
 	"entrypoints": {
-		"client": ["com.arcticlauncher.polarium.bench.CrowdBench", "com.arcticlauncher.polarium.bench.TerrainBench"]
+		"client": ["com.arcticlauncher.polarium.bench.CrowdBench", "com.arcticlauncher.polarium.bench.TerrainBench", "com.arcticlauncher.polarium.bench.MapBench"]
 	},
 	"mixins": ["polarium.mixins.json"],
 	"depends": {
