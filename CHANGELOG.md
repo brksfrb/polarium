@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.0
+
+- Item frames are much cheaper, which matters for map billboards (hundreds
+  of frames showing maps): every frame used to look its wooden model up
+  again each frame, and build the shown item's model even while drawing a
+  map. The four frame models (plain or glow, with or without a map) are now
+  looked up once and shared, and the item model is skipped when a map is
+  drawn. Measured on 350 maps in frames: roughly a third more FPS.
+  (26.2 only for now.)
+
 ## 0.29.0
 
 - A server can find out Polarium is installed, so it can recommend it
