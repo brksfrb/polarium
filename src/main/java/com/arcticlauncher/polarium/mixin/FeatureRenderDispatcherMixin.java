@@ -32,6 +32,14 @@ abstract class FeatureRenderDispatcherMixin {
 	@Inject(method = "prepareFrameWithContext", at = @At("RETURN"))
 	private void polarium$prepared(FeatureFrameContext context, SubmitNodeStorage storage,
 			CallbackInfoReturnable<FeatureRenderDispatcher.PreparedFrame> cir) {
+		//#if MC >= 26.3
+		// Every group is prepared and no render pass is open yet: the GPU data goes up now.
+		for (net.minecraft.client.renderer.feature.FeatureRenderer<?> renderer : featureRenderers.values()) {
+			if (renderer instanceof com.arcticlauncher.polarium.gpu.GpuBatchesHolder holder) {
+				holder.polarium$batches().prepareDraws();
+			}
+		}
+		//#endif
 		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.PREPARE_FRAME);
 	}
 

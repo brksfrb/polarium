@@ -34,12 +34,23 @@ abstract class RenderTypeFeatureRendererMixin {
 		}
 	}
 
+	//#if MC >= 26.3
+	// 26.3 opens the render pass itself and hands it over, with the transparency (OIT) stage.
+	@Inject(method = "executeGroup", at = @At("HEAD"))
+	private void polarium$drawGroup(FeatureFrameContext context, net.minecraft.client.renderer.oit.@org.jspecify.annotations.Nullable OitStage stage,
+			com.mojang.renderpearl.api.commands.RenderPass renderPass, int groupIndex, List<?> submits, boolean strictlyOrdered, CallbackInfo ci) {
+		if (this instanceof GpuBatchesHolder holder) {
+			holder.polarium$batches().executeGroup(groupIndex, renderPass, stage);
+		}
+	}
+	//#else
 	@Inject(method = "executeGroup", at = @At("HEAD"))
 	private void polarium$drawGroup(FeatureFrameContext context, int groupIndex, List<?> submits, boolean strictlyOrdered, CallbackInfo ci) {
 		if (this instanceof GpuBatchesHolder holder) {
 			holder.polarium$batches().executeGroup(groupIndex);
 		}
 	}
+	//#endif
 
 	@Inject(method = "finishExecute", at = @At("HEAD"))
 	private void polarium$endFrame(FeatureFrameContext context, CallbackInfo ci) {

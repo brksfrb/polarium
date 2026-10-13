@@ -137,6 +137,12 @@ public final class GpuItems {
 					|| !InstancedPipelines.supports(material.itemRenderType().pipeline(), ITEM_SHADER)) {
 				return false;
 			}
+			//#if MC >= 26.3
+			// 26.3 draws see-through item quads in a later phase of their own: those items go the game's way.
+			if (material.itemRenderType().hasBlending()) {
+				return false;
+			}
+			//#endif
 		}
 		return true;
 	}

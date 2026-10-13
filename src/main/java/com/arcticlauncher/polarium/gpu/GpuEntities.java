@@ -124,7 +124,11 @@ public final class GpuEntities {
 	}
 
 	private static boolean takeable(ModelFeatureRenderer.Submit<?> submit) {
+		//#if MC >= 26.3
+		return submit.uvMapping() == null && submit.sheetedDecalPose() == null
+		//#else
 		return submit.sprite() == null && submit.sheetedDecalPose() == null
+		//#endif
 				&& InstancedPipelines.supports(submit.renderType().pipeline(), ENTITY_SHADER);
 	}
 
@@ -420,7 +424,11 @@ public final class GpuEntities {
 		family.add(bucket.model);
 		family.add(java.util.Objects.requireNonNullElse(bucket.owner, "posed itself"));
 		family.add(prepared.pipeline());
+		//#if MC >= 26.3
+		family.add(java.util.Objects.requireNonNullElse(prepared.oitPipelineSet(), "no OIT"));
+		//#else
 		family.add(prepared.outputTarget());
+		//#endif
 		family.add(prepared.scissorState());
 		com.mojang.blaze3d.textures.GpuTextureView texture = null;
 		for (net.minecraft.client.renderer.rendertype.PreparedRenderType.Texture t : prepared.textures()) {

@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 && MC < 26.3
 package com.arcticlauncher.polarium.mixin;
 
 import net.minecraft.client.gui.Font;

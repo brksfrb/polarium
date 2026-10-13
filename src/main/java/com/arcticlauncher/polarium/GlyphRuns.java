@@ -212,6 +212,14 @@ public final class GlyphRuns {
 			return this;
 		}
 
+		//#if MC >= 26.3
+		/** The breaking overlay's coordinates: glyphs have none. */
+		@Override
+		public VertexConsumer setUv3(float u, float v) {
+			return this;
+		}
+		//#endif
+
 		@Override
 		public VertexConsumer setUv2(int u, int v) {
 			return this;

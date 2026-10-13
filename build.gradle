@@ -90,7 +90,45 @@ def preprocessSource = { String text, String name ->
 	return out.toString()
 }
 
-def applyRenames = { String text -> text }
+/**
+ * Classes that moved between versions, old name → new: written once here instead of a //#if
+ * around every import. 26.3 moved the GPU layer from com.mojang.blaze3d to com.mojang.renderpearl
+ * (one API over its OpenGL and Vulkan backends).
+ */
+def renames = atLeast('26.3') ? [
+		'com.mojang.blaze3d.buffers.GpuBufferSlice'      : 'com.mojang.renderpearl.api.buffers.GpuBufferSlice',
+		'com.mojang.blaze3d.buffers.GpuBuffer'           : 'com.mojang.renderpearl.api.buffers.GpuBuffer',
+		'com.mojang.blaze3d.buffers.GpuFence'            : 'com.mojang.renderpearl.api.commands.GpuFence',
+		'com.mojang.blaze3d.opengl.GlTexture'            : 'com.mojang.renderpearl.backend.opengl.GlTexture',
+		'com.mojang.blaze3d.pipeline.BindGroupLayout'    : 'com.mojang.renderpearl.api.pipeline.BindGroupLayout',
+		'com.mojang.blaze3d.pipeline.ColorTargetState'   : 'com.mojang.renderpearl.api.pipeline.ColorTargetState',
+		'com.mojang.blaze3d.pipeline.DepthStencilState'  : 'com.mojang.renderpearl.api.pipeline.DepthStencilState',
+		'com.mojang.blaze3d.pipeline.RenderPipeline'     : 'com.mojang.renderpearl.api.pipeline.RenderPipeline',
+		'com.mojang.blaze3d.platform.PolygonMode'        : 'com.mojang.renderpearl.api.pipeline.PolygonMode',
+		'com.mojang.blaze3d.shaders.ShaderType'          : 'com.mojang.renderpearl.api.pipeline.ShaderType',
+		'com.mojang.blaze3d.shaders.UniformType'         : 'com.mojang.renderpearl.api.pipeline.UniformType',
+		'com.mojang.blaze3d.systems.CommandEncoder'      : 'com.mojang.renderpearl.api.commands.CommandEncoder',
+		'com.mojang.blaze3d.systems.GpuDevice'           : 'com.mojang.renderpearl.api.device.GpuDevice',
+		'com.mojang.blaze3d.systems.GpuSurface'          : 'com.mojang.renderpearl.api.device.GpuSurface',
+		'com.mojang.blaze3d.systems.RenderPass'          : 'com.mojang.renderpearl.api.commands.RenderPass',
+		'com.mojang.blaze3d.textures.GpuSampler'         : 'com.mojang.renderpearl.api.textures.GpuSampler',
+		'com.mojang.blaze3d.textures.GpuTextureView'     : 'com.mojang.renderpearl.api.textures.GpuTextureView',
+		'com.mojang.blaze3d.textures.GpuTexture'         : 'com.mojang.renderpearl.api.textures.GpuTexture',
+		'com.mojang.blaze3d.vertex.VertexFormat'         : 'com.mojang.renderpearl.api.vertex.VertexFormat',
+		'com.mojang.blaze3d.GpuFormat'                   : 'com.mojang.renderpearl.api.GpuFormat',
+		'com.mojang.blaze3d.IndexType'                   : 'com.mojang.renderpearl.api.pipeline.IndexType',
+		'com.mojang.blaze3d.PrimitiveTopology'           : 'com.mojang.renderpearl.api.pipeline.PrimitiveTopology',
+		// Type-annotated names (`pkg.@Nullable Type`) name the package alone.
+		'com.mojang.blaze3d.textures.@'                  : 'com.mojang.renderpearl.api.textures.@',
+] : [:]
+
+/** Whole names only: GpuBuffer must not catch GpuBufferSlice. Mixin targets name them as paths (a/b/C) too. */
+def applyRenames = { String text ->
+	def both = renames + renames.findAll { k, v -> !k.endsWith('@') }.collectEntries { k, v -> [(k.replace('.', '/')): v.replace('.', '/')] }
+	both.inject(text) { String acc, String from, String to ->
+		acc.replaceAll(java.util.regex.Pattern.quote(from) + (from.endsWith('@') ? '' : '(?![A-Za-z0-9_])'), java.util.regex.Matcher.quoteReplacement(to))
+	}
+}
 
 def preprocessedJava = layout.buildDirectory.dir("preprocessed/${mc}/java")
 
@@ -165,8 +203,10 @@ processResources {
 	filesMatching(['fabric.mod.json', 'polarium.mixins.json']) {
 		expand props
 	}
-	// Mixins whose source is compiled out for this version (//#if) aren't listed.
+	// Mixins whose source is compiled out for this version (//#if) aren't listed: the list follows the
+	// preprocessed sources, so it's made again whenever they change.
 	dependsOn 'preprocessJava'
+	inputs.dir(preprocessedJava)
 	doLast {
 		def config = new File(destinationDir, 'polarium.mixins.json')
 		def json = new groovy.json.JsonSlurper().parse(config)

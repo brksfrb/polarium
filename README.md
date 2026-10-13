@@ -59,6 +59,7 @@ Chat, Xaero's Minimap, Jade, AppleSkin, Mod Menu):
 
 | Minecraft | Fabric Loader | What's in |
 | --- | --- | --- |
+| 26.3 | 0.16.9+ | everything but GPU name tags (name tags are drawn the game's way) |
 | 26.2 | 0.16.9+ | everything |
 | 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states); the GPU path is being ported |
 

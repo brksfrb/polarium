@@ -14,8 +14,13 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 /** One layer of an item's render state (see {@link ItemStackRenderStateAccess}). */
 @Mixin(ItemStackRenderState.LayerRenderState.class)
 public interface ItemLayerRenderStateAccess {
+	//#if MC >= 26.3
+	@Accessor("quads")
+	net.minecraft.client.resources.model.geometry.ItemQuads polarium$quads();
+	//#else
 	@Accessor("quads")
 	List<BakedQuad> polarium$quads();
+	//#endif
 
 	@Accessor("itemTransform")
 	ItemTransform polarium$itemTransform();

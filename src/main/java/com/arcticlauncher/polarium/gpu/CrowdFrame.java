@@ -618,8 +618,8 @@ final class CrowdFrame {
 			if (Float.floatToIntBits(mine[i]) != Float.floatToIntBits(game[i])) {
 				if (POSES_DIFFERENT.incrementAndGet() < 20) {
 					org.slf4j.LoggerFactory.getLogger("Polarium").warn("Polarium pose check: part {} value {}: {} vs the game's {} (crouching {}, attack {} {}, arms {} {}, passenger {})",
-							i / HumanoidPoses.VALUES, i % HumanoidPoses.VALUES, mine[i], game[i], state.isCrouching, state.attackTime,
-							state.swingAnimationType, state.rightArmPose, state.leftArmPose, state.isPassenger);
+							i / HumanoidPoses.VALUES, i % HumanoidPoses.VALUES, mine[i], game[i], state.isCrouching, Swings.progress(state),
+							Swings.type(state), state.rightArmPose, state.leftArmPose, state.isPassenger);
 				}
 				break;
 			}

@@ -9,6 +9,9 @@ import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.PolygonMode;
 import com.mojang.blaze3d.shaders.UniformType;
+//#if MC >= 26.3
+import com.mojang.blaze3d.shaders.ShaderType;
+//#endif
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -44,7 +47,7 @@ final class InstancedPipelines {
 
 	/** Whether this pipeline is one of the game's pipelines for {@code vertexShader} (whose instanced twin Polarium has). */
 	static boolean supports(RenderPipeline pipeline, Identifier vertexShader) {
-		return vertexShader.equals(pipeline.getVertexShader())
+		return vertexShader.equals(vertexShader(pipeline))
 				&& pipeline.getPrimitiveTopology() == PrimitiveTopology.QUADS
 				&& DefaultVertexFormat.ENTITY.equals(pipeline.getVertexFormatBinding(0));
 	}
@@ -64,12 +67,16 @@ final class InstancedPipelines {
 		RenderPipeline twin = twins.get(vertexShader);
 		if (twin == null) {
 			// The pipeline keeps one slot per possible binding: fill ours, clear the rest.
+			//#if MC >= 26.3
+			VertexFormat[] bindings = original.getVertexFormatBindings().toArray(new VertexFormat[0]);
+			//#else
 			VertexFormat[] bindings = original.getVertexFormatBindings().clone();
+			//#endif
 			java.util.Arrays.fill(bindings, null);
 			System.arraycopy(formats, 0, bindings, 0, formats.length);
 			twin = create(original, vertexShader, layout, bindings);
 			// Compiled now: a shader that doesn't compile would otherwise draw nothing, silently.
-			if (!RenderSystem.getDevice().precompilePipeline(twin).isValid()) {
+			if (!compiles(twin)) {
 				throw new IllegalStateException("the GPU couldn't compile Polarium's version of " + original.getLocation());
 			}
 			twins.put(vertexShader, twin);
@@ -83,22 +90,56 @@ final class InstancedPipelines {
 		Identifier location = Identifier.fromNamespaceAndPath("polarium",
 				"instanced/" + original.getLocation().getNamespace() + "/" + original.getLocation().getPath() + "/" + vertexShader.getPath());
 		try {
+			//#if MC >= 26.3
+			java.util.Map<ShaderType, Identifier> shaders = new java.util.EnumMap<>(ShaderType.class);
+			shaders.putAll(original.getShaders());
+			shaders.put(ShaderType.VERTEX, vertexShader);
+			return constructor().newInstance(location, shaders, original.getShaderDefines(), List.copyOf(layouts),
+					original.getColorTargetStates().toArray(new ColorTargetState[0]), original.getDepthStencilState(),
+					original.getPolygonMode(), original.isCull(), bindings, original.getPrimitiveTopology(),
+					original.pushConstantSize(), original.getSortKey());
+			//#else
 			return constructor().newInstance(location, vertexShader, original.getFragmentShader(),
 					original.getShaderDefines(), List.copyOf(layouts), original.getColorTargetStates().clone(),
 					original.getDepthStencilState(), original.getPolygonMode(), original.isCull(), bindings,
 					original.getPrimitiveTopology(), original.getSortKey());
+			//#endif
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException("can't make an instanced twin of " + original, e);
 		}
+	}
+
+	/** A pipeline's vertex shader (26.3 keeps the shaders in one map by stage). */
+	static @Nullable Identifier vertexShader(RenderPipeline pipeline) {
+		//#if MC >= 26.3
+		return pipeline.getShaders().get(ShaderType.VERTEX);
+		//#else
+		return pipeline.getVertexShader();
+		//#endif
+	}
+
+	/** Compiles now (a shader that doesn't would draw nothing, silently). */
+	static boolean compiles(RenderPipeline pipeline) {
+		//#if MC >= 26.3
+		return RenderSystem.getCompiledPipelineNullable(pipeline) != null;
+		//#else
+		return RenderSystem.getDevice().precompilePipeline(pipeline).isValid();
+		//#endif
 	}
 
 	/** RenderPipeline's own constructor (the builder can't copy an existing pipeline's settings). */
 	@SuppressWarnings("unchecked")
 	private static Constructor<RenderPipeline> constructor() throws NoSuchMethodException {
 		if (constructor == null) {
+			//#if MC >= 26.3
+			Constructor<RenderPipeline> found = RenderPipeline.class.getDeclaredConstructor(Identifier.class, java.util.Map.class,
+					ShaderDefines.class, java.util.Collection.class, ColorTargetState[].class, DepthStencilState.class,
+					PolygonMode.class, boolean.class, VertexFormat[].class, PrimitiveTopology.class, int.class, int.class);
+			//#else
 			Constructor<RenderPipeline> found = RenderPipeline.class.getDeclaredConstructor(Identifier.class, Identifier.class,
 					Identifier.class, ShaderDefines.class, List.class, ColorTargetState[].class, DepthStencilState.class,
 					PolygonMode.class, boolean.class, VertexFormat[].class, PrimitiveTopology.class, int.class);
+			//#endif
 			found.setAccessible(true);
 			constructor = found;
 		}

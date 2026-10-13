@@ -297,13 +297,27 @@ public final class Crowd {
 		}
 		for (Bucket bucket : CrowdFrame.ACTIVE_MODELS) {
 			PROXY_POSE.last().pose().set(CrowdFrame.entityRoot, bucket.farthestEntity * 16);
+			//#if MC >= 26.3
+			collector.order(bucket.order).submitModel((Model) bucket.model, bucket, PROXY_POSE, bucket.renderType, FULL_BRIGHT,
+					OverlayTexture.NO_OVERLAY, -1, null, 0);
+			//#else
 			collector.order(bucket.order).submitModel((Model) bucket.model, bucket, PROXY_POSE, bucket.renderType, FULL_BRIGHT,
 					OverlayTexture.NO_OVERLAY, -1, null, 0, null);
+			//#endif
 		}
 		for (ItemBucket bucket : CrowdFrame.ACTIVE_ITEMS) {
 			PROXY_POSE.last().pose().set(CrowdFrame.entityRoot, bucket.farthestEntity * 16);
+			//#if MC >= 26.3
+			// 26.3 sends solid and see-through quads to separate submits, each with the list as given: the
+			// crowd's (solid only, see GpuItems.drawable) arrives as it is, for GpuItems to recognize.
+			collector.order(bucket.order).submitItem(PROXY_POSE, bucket.context, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0,
+					ItemStackRenderState.LayerRenderState.EMPTY_TINTS,
+					new net.minecraft.client.resources.model.geometry.ItemQuads(bucket.quads, bucket.quads, java.util.List.of()),
+					ItemStackRenderState.FoilType.NONE);
+			//#else
 			collector.order(bucket.order).submitItem(PROXY_POSE, bucket.context, FULL_BRIGHT, OverlayTexture.NO_OVERLAY, 0,
 					ItemStackRenderState.LayerRenderState.EMPTY_TINTS, bucket.quads, ItemStackRenderState.FoilType.NONE);
+			//#endif
 		}
 		report();
 	}
@@ -508,7 +522,7 @@ public final class Crowd {
 	/** Players the crowd path can draw this frame; the rest take the game's path. */
 	private static boolean eligible(AvatarRenderState state) {
 		return !state.isInvisible && state.outlineColor == 0 && !state.isSpectator && !state.hasPose(Pose.SLEEPING) && !state.isUsingItem
-				&& !(state.attackTime > 0.0F && state.swingAnimationType == SwingAnimationType.STAB);
+				&& !(Swings.progress(state) > 0.0F && Swings.type(state) == SwingAnimationType.STAB);
 	}
 
 	/** Layers left to the game, the game's way (at the root, with the model posed, as the game would). */

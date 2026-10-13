@@ -429,10 +429,10 @@ public final class GpuText implements GpuFeature {
 		if (pipeline.getPrimitiveTopology() != PrimitiveTopology.QUADS) {
 			return null;
 		}
-		if (GAME_TEXT.equals(pipeline.getVertexShader())) {
+		if (GAME_TEXT.equals(InstancedPipelines.vertexShader(pipeline))) {
 			return TEXT_SHADER;
 		}
-		if (GAME_BACKGROUND.equals(pipeline.getVertexShader())) {
+		if (GAME_BACKGROUND.equals(InstancedPipelines.vertexShader(pipeline))) {
 			return BACKGROUND_SHADER;
 		}
 		return null;
@@ -466,19 +466,44 @@ public final class GpuText implements GpuFeature {
 		batch.maxVertices = Math.max(batch.maxVertices, run.vertexCount());
 	}
 
+	//#if MC >= 26.3
+	/** 26.3: into the game's open pass (the group's transparency stage, if any, is the game's to apply). */
+	@Override
+	public void executeGroup(int groupIndex, RenderPass pass, net.minecraft.client.renderer.oit.@Nullable OitStage stage) {
+		this.pass = pass;
+		try {
+			executeGroup(groupIndex);
+		} finally {
+			this.pass = null;
+		}
+	}
+
+	private @Nullable RenderPass pass;
+	//#endif
+
 	@Override
 	public void executeGroup(int groupIndex) {
 		if (groupIndex < 0 || groupIndex >= groups.size() || groups.get(groupIndex).isEmpty()) {
 			return;
 		}
 		try {
+			//#if MC < 26.3
+			prepareDraws();
+			//#endif
 			if (!uploaded) {
-				upload();
-				uploaded = true;
+				return;
 			}
 			draw(groups.get(groupIndex));
 		} catch (RuntimeException e) {
 			GpuBatches.disable("drawing name tags on the GPU failed", e);
+		}
+	}
+
+	@Override
+	public void prepareDraws() {
+		if (!uploaded && !groups.stream().allMatch(List::isEmpty)) {
+			upload();
+			uploaded = true;
 		}
 	}
 
@@ -594,16 +619,22 @@ public final class GpuText implements GpuFeature {
 				continue;
 			}
 			PreparedRenderType type = batch.prepared;
+			int indexCount = (batch.maxVertices + 3) / 4 * 6;
+			//#if MC >= 26.3
+			RenderPass pass = java.util.Objects.requireNonNull(this.pass, "no render pass");
+			{
+				pass.setPipeline(RenderSystem.getCompiledPipeline(batch.pipeline));
+			//#else
 			RenderTarget target = type.outputTarget().getRenderTarget();
 			GpuTextureView color = RenderSystem.outputColorTextureOverride != null
 					? RenderSystem.outputColorTextureOverride : target.getColorTextureView();
 			GpuTextureView depth = target.useDepth
 					? (RenderSystem.outputDepthTextureOverride != null ? RenderSystem.outputDepthTextureOverride : target.getDepthTextureView())
 					: null;
-			int indexCount = (batch.maxVertices + 3) / 4 * 6;
 			try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder()
 					.createRenderPass(() -> "Polarium name tags", color, Optional.empty(), depth, OptionalDouble.empty())) {
 				pass.setPipeline(batch.pipeline);
+			//#endif
 				if (type.scissorState().enabled()) {
 					pass.enableScissor(type.scissorState().x(), type.scissorState().y(), type.scissorState().width(), type.scissorState().height());
 				}
@@ -614,7 +645,11 @@ public final class GpuText implements GpuFeature {
 				pass.setVertexBuffer(0, slots.slice());
 				pass.setVertexBuffer(1, items.slice(batch.offset, (long) batch.count * ITEM_BYTES));
 				for (PreparedRenderType.Texture texture : type.textures()) {
+					//#if MC >= 26.3
+					pass.setUniform(texture.name(), texture.textureView(), texture.sampler());
+					//#else
 					pass.bindTexture(texture.name(), texture.textureView(), texture.sampler());
+					//#endif
 				}
 				pass.setIndexBuffer(indices.getBuffer(indexCount), indices.type());
 				pass.drawIndexed(indexCount, batch.count, 0, 0, 0);

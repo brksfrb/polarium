@@ -198,7 +198,7 @@ final class HumanoidPoses {
 	/** Whether {@link #pose} covers this state (else the model's own setupAnim is needed). */
 	static boolean covers(AvatarRenderState state) {
 		return !state.isFallFlying && !(state.swimAmount > 0.0F) && !state.isUsingItem && simple(state.rightArmPose)
-				&& simple(state.leftArmPose) && state.swingAnimationType != SwingAnimationType.STAB;
+				&& simple(state.leftArmPose) && Swings.type(state) != SwingAnimationType.STAB;
 	}
 
 	/** Arm poses that only move their own arm (so the order the arms are posed in doesn't matter). */
@@ -259,10 +259,11 @@ final class HumanoidPoses {
 		}
 		poseArm(state.rightArmPose, out, rightArm, head, true);
 		poseArm(state.leftArmPose, out, leftArm, head, false);
-		float attackTime = state.attackTime;
+		float attackTime = Swings.progress(state);
+		HumanoidArm swingArm = Swings.arm(state);
 		if (!(attackTime <= 0.0F)) {
 			out[body + Y_ROT] = Mth.sin(Mth.sqrt(attackTime) * (float) (Math.PI * 2)) * 0.2F;
-			if (state.attackArm == HumanoidArm.LEFT) {
+			if (swingArm == HumanoidArm.LEFT) {
 				out[body + Y_ROT] *= -1.0F;
 			}
 			float bodyYRot = out[body + Y_ROT];
@@ -274,11 +275,11 @@ final class HumanoidPoses {
 			out[rightArm + Y_ROT] = out[rightArm + Y_ROT] + bodyYRot;
 			out[leftArm + Y_ROT] = out[leftArm + Y_ROT] + bodyYRot;
 			out[leftArm + X_ROT] = out[leftArm + X_ROT] + bodyYRot;
-			if (state.swingAnimationType == SwingAnimationType.WHACK) {
+			if (Swings.type(state) == SwingAnimationType.WHACK) {
 				float swing = Ease.outQuart(attackTime);
 				float aa = Mth.sin(swing * (float) Math.PI);
 				float bb = Mth.sin(attackTime * (float) Math.PI) * -(out[head + X_ROT] - 0.7F) * 0.75F;
-				int attackArm = state.attackArm == HumanoidArm.LEFT ? leftArm : rightArm;
+				int attackArm = swingArm == HumanoidArm.LEFT ? leftArm : rightArm;
 				out[attackArm + X_ROT] -= aa * 1.2F + bb;
 				out[attackArm + Y_ROT] = out[attackArm + Y_ROT] + bodyYRot * 2.0F;
 				out[attackArm + Z_ROT] = out[attackArm + Z_ROT] + Mth.sin(attackTime * (float) Math.PI) * -0.4F;

@@ -30,7 +30,12 @@ public final class ShaderSources {
 	/** The game's vertex inputs that Polarium supplies (as minecraft_Position, …). */
 	private static final String INPUTS = "Position|Color|UV0|UV1|UV2|Normal";
 	private static final Pattern VERSION = Pattern.compile("(?m)^#version[^\\n]*\\n");
-	private static final Pattern INPUT_DECLARATION = Pattern.compile("(?m)^[ \\t]*in[ \\t]+\\w+[ \\t]+(?:" + INPUTS + ")[ \\t]*;[^\\n]*$");
+	// 26.3 writes them with their location: layout(location = 0) in vec3 Position;
+	private static final Pattern INPUT_DECLARATION = Pattern.compile(
+			"(?m)^[ \\t]*(?:layout[ \\t]*\\([^)]*\\)[ \\t]*)?in[ \\t]+\\w+[ \\t]+(?:" + INPUTS + ")[ \\t]*;[^\\n]*$");
+	/** One of Polarium's own vertex inputs (26.3 needs each one's location). */
+	private static final Pattern OWN_INPUT = Pattern.compile("(?m)^in[ \\t]");
+	private static final Pattern INSTANCE_ID = Pattern.compile("\\bgl_InstanceID\\b");
 	private static final Pattern INPUT_USE = Pattern.compile("\\b(" + INPUTS + ")\\b");
 	private static final Pattern MAIN = Pattern.compile("\\bvoid\\s+main\\s*\\(\\s*\\)");
 	private static final String HEADER = """
@@ -81,7 +86,26 @@ public final class ShaderSources {
 		}
 		body = body.substring(0, at) + "void minecraft_main()" + body.substring(at).replaceFirst(MAIN.pattern(), "");
 		body = INPUT_USE.matcher(body).replaceAll("minecraft_$1");
+		//#if MC >= 26.3
+		part = forSpirv(part);
+		//#endif
 		return game.substring(0, version.end()) + HEADER + body + "\n" + part + "\nvoid main() {\n    polarium_main();\n}\n";
+	}
+
+	/**
+	 * 26.3 compiles shaders to SPIR-V: every vertex input names its location (the game matches inputs
+	 * to the vertex format by name, so any distinct ones do), and the instance number is
+	 * gl_InstanceIndex (the same as gl_InstanceID here: Polarium's draws start at instance 0).
+	 */
+	static String forSpirv(String part) {
+		Matcher input = OWN_INPUT.matcher(part);
+		StringBuilder out = new StringBuilder();
+		int location = 0;
+		while (input.find()) {
+			input.appendReplacement(out, "layout(location = " + location++ + ") in ");
+		}
+		input.appendTail(out);
+		return INSTANCE_ID.matcher(out.toString()).replaceAll("gl_InstanceIndex");
 	}
 
 	private static String read(String file) {

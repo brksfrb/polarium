@@ -27,8 +27,13 @@ abstract class GameRendererExtractMixin {
 		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.EXTRACT);
 	}
 
+	// 26.3's render() takes nothing (the frame's timing was extracted already).
 	@Inject(method = "render", at = @At("HEAD"))
+	//#if MC >= 26.3
+	private void polarium$entitiesInBeforeDrawing(CallbackInfo ci) {
+	//#else
 	private void polarium$entitiesInBeforeDrawing(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
+	//#endif
 		if (!ParallelExtract.lateJoin()) {
 			ParallelExtract.finish();
 		}
@@ -37,7 +42,11 @@ abstract class GameRendererExtractMixin {
 	}
 
 	@Inject(method = "render", at = @At("TAIL"))
+	//#if MC >= 26.3
+	private void polarium$frameDrawn(CallbackInfo ci) {
+	//#else
 	private void polarium$frameDrawn(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
+	//#endif
 		// The level's entity states in, whatever happened (no level drawn this frame, say).
 		ParallelExtract.finish();
 		com.arcticlauncher.polarium.PreparedTexts.newFrame();

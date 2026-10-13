@@ -52,8 +52,14 @@ abstract class LevelExtractorMixin {
 	@Shadow
 	private ClientLevel level;
 
+	//#if MC >= 26.3
+	@Shadow
+	public abstract boolean isEntityVisible(Entity entity, Frustum frustum, double camX, double camY, double camZ, float partialTicks,
+			long chunkFadeDuration);
+	//#else
 	@Shadow
 	public abstract boolean isEntityVisible(Entity entity, Frustum frustum, double camX, double camY, double camZ);
+	//#endif
 
 	@Shadow
 	protected abstract EntityRenderState extractEntity(Entity entity, float partialTicks);
@@ -83,7 +89,14 @@ abstract class LevelExtractorMixin {
 		Entity cameraEntity = camera.entity();
 		boolean detached = camera.isDetached();
 		boolean sleeping = cameraEntity instanceof LivingEntity living && living.isSleeping();
+		//#if MC >= 26.3
+		// 26.3 checks each entity at its own partial tick, and lets a section's fade-in decide too.
+		long chunkFadeDuration = net.minecraft.util.Util.toMillis(this.minecraft.options.chunkSectionFadeInTime().get());
+		ParallelExtract.extractLevel(all, dispatcher,
+				e -> this.isEntityVisible(e, frustum, camX, camY, camZ, tickRateManager.isEntityFrozen(e) ? frozen : running, chunkFadeDuration),
+		//#else
 		ParallelExtract.extractLevel(all, dispatcher, e -> this.isEntityVisible(e, frustum, camX, camY, camZ),
+		//#endif
 				// The game's camera rules: not the camera's own entity in first person (unless asleep), no other local player.
 				e -> (e != cameraEntity || detached || sleeping) && (!(e instanceof LocalPlayer) || cameraEntity == e),
 				e -> tickRateManager.isEntityFrozen(e) ? frozen : running, this::extractEntity, output.entityRenderStates);

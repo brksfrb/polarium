@@ -4,9 +4,11 @@ package com.arcticlauncher.polarium.gpu;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.ScissorState;
+//#if MC < 26.3
 import net.minecraft.client.renderer.rendertype.OutputTarget;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+//#endif
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderPass;
@@ -206,7 +208,12 @@ public final class GpuBatches implements GpuFeature {
 		if (a == b) {
 			return true;
 		}
-		if (a.pipeline() != b.pipeline() || a.outputTarget() != b.outputTarget() || !a.scissorState().equals(b.scissorState())
+		//#if MC >= 26.3
+		boolean sameTarget = a.oitPipelineSet() == b.oitPipelineSet();
+		//#else
+		boolean sameTarget = a.outputTarget() == b.outputTarget();
+		//#endif
+		if (a.pipeline() != b.pipeline() || !sameTarget || !a.scissorState().equals(b.scissorState())
 				|| a.textures().size() != b.textures().size()) {
 			return false;
 		}
@@ -234,31 +241,79 @@ public final class GpuBatches implements GpuFeature {
 				&& a.getMaxAnisotropy() == b.getMaxAnisotropy() && a.getMaxLod().equals(b.getMaxLod()));
 	}
 
+	//#if MC >= 26.3
+	/** Draw group {@code groupIndex} into the game's open pass (in transparency stage {@code stage}, if any). */
+	@Override
+	public void executeGroup(int groupIndex, RenderPass pass, net.minecraft.client.renderer.oit.@Nullable OitStage stage) {
+		this.pass = pass;
+		this.stage = stage;
+		try {
+			executeGroup(groupIndex);
+		} finally {
+			this.pass = null;
+			this.stage = null;
+		}
+	}
+
+	/** The game's pass and transparency stage for the group being drawn (26.3 hands them over). */
+	private @Nullable RenderPass pass;
+	private net.minecraft.client.renderer.oit.@Nullable OitStage stage;
+	//#endif
+
 	/** Draw this group's batches (the game draws the rest of the group after). */
 	@Override
+
 	public void executeGroup(int groupIndex) {
 		if (groupIndex < 0 || groupIndex >= groups.size() || groups.get(groupIndex).isEmpty()) {
 			return;
 		}
 		try {
-			if (!uploaded) {
-				com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_LAYOUT);
-				layOut();
-				com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_LAYOUT);
-				com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_COMPUTE);
-				beforeUpload.run();
-				com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_COMPUTE);
-				com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_UPLOAD);
-				upload();
-				com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_UPLOAD);
-				uploaded = true;
+			upload(true);
+			if (!uploaded || disabled()) {
+				return;
 			}
 			com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_DRAWS);
+			//#if MC >= 26.3
+			drawInto(java.util.Objects.requireNonNull(pass, "no render pass"), stage, groups.get(groupIndex), instanceBuffers[slot()], drawBuffers[slot()]);
+			//#else
 			drawAll(groups.get(groupIndex), instanceBuffers[slot()], drawBuffers[slot()]);
+			//#endif
 			com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_DRAWS);
 		} catch (RuntimeException e) {
 			disable("drawing models on the GPU failed", e);
 		}
+	}
+
+	@Override
+	public void prepareDraws() {
+		try {
+			upload(false);
+		} catch (RuntimeException e) {
+			disable("preparing models for the GPU failed", e);
+		}
+	}
+
+	/** The frame's layout, deferred work and upload, once; {@code fromDraw}: at the first group (before 26.3). */
+	private void upload(boolean fromDraw) {
+		//#if MC >= 26.3
+		// Done before the passes open (prepareDraws); a group drawn without it has nothing to draw.
+		if (fromDraw) {
+			return;
+		}
+		//#endif
+		if (uploaded || groups.stream().allMatch(List::isEmpty)) {
+			return;
+		}
+		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_LAYOUT);
+		layOut();
+		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_LAYOUT);
+		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_COMPUTE);
+		beforeUpload.run();
+		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_COMPUTE);
+		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_UPLOAD);
+		upload();
+		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_UPLOAD);
+		uploaded = true;
 	}
 
 	private long layoutTexels;
@@ -375,6 +430,42 @@ public final class GpuBatches implements GpuFeature {
 		return device.createBuffer(() -> label, usage, capacity);
 	}
 
+	//#if MC >= 26.3
+	/**
+	 * A group's batches into the game's own render pass, each one instanced draw set up the way
+	 * the game draws its render type (PreparedRenderType.draw): compiled pipeline (the stage's
+	 * transparency pipeline in an OIT stage), scissor, default uniforms, dynamic transforms and
+	 * textures, plus the instances and the batch's draw data.
+	 */
+	private static void drawInto(RenderPass pass, net.minecraft.client.renderer.oit.@Nullable OitStage stage, List<Batch> batches,
+			GpuBuffer instances, GpuBuffer draws) {
+		RenderSystem.AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS);
+		for (Batch batch : batches) {
+			PreparedRenderType type = batch.prepared;
+			RenderPipeline pipeline = stage != null && type.oitPipelineSet() != null
+					? InstancedPipelines.twin(type.oitPipelineSet().getPipeline(stage), batch.mesh.vertexShader)
+					: batch.pipeline;
+			int indexCount = batch.mesh.vertexCount / 4 * 6;
+			pass.pushDebugGroup(() -> "Polarium instanced " + type.name());
+			pass.setPipeline(RenderSystem.getCompiledPipeline(pipeline));
+			if (type.scissorState().enabled()) {
+				pass.enableScissor(type.scissorState().x(), type.scissorState().y(), type.scissorState().width(), type.scissorState().height());
+			}
+			RenderSystem.bindDefaultUniforms(pass);
+			pass.setUniform("DynamicTransforms", type.dynamicTransforms());
+			pass.setUniform("PolariumInstances", instances);
+			pass.setUniform("PolariumDraw", draws.slice(batch.drawOffset, 16));
+			pass.setVertexBuffer(0, batch.mesh.vertices.slice());
+			for (PreparedRenderType.Texture texture : type.textures()) {
+				GpuTextureView view = batch.atlas != null && "Sampler0".equals(texture.name()) ? batch.atlas : texture.textureView();
+				pass.setUniform(texture.name(), view, texture.sampler());
+			}
+			pass.setIndexBuffer(indices.getBuffer(indexCount), indices.type());
+			pass.drawIndexed(indexCount, batch.instances, 0, 0, 0);
+			pass.popDebugGroup();
+		}
+	}
+	//#else
 	/**
 	 * A group's batches, each one instanced draw set up the way the game draws
 	 * its render type, sharing a render pass while they draw to the same target.
@@ -430,6 +521,7 @@ public final class GpuBatches implements GpuFeature {
 		pass.setUniform("PolariumInstances", instances);
 		return pass;
 	}
+	//#endif
 
 	/** The frame's draws are done: get ready for the next. */
 	@Override

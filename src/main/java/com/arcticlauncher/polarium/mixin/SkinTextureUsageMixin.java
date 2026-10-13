@@ -14,11 +14,21 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
  * Polarium's skin atlas can take them in. Only the permission is added;
  * the textures are made and used as before.
  */
+//#if MC >= 26.3
+// 26.3: GpuDevice is an interface; every texture is made by its one implementation, here.
+@Mixin(com.mojang.renderpearl.frontend.FrontendGpuDevice.class)
+abstract class SkinTextureUsageMixin {
+	@ModifyVariable(method = "createTexture(Ljava/lang/String;ILcom/mojang/renderpearl/api/GpuFormat;IIII)Lcom/mojang/renderpearl/api/textures/GpuTexture;",
+			at = @At("HEAD"), argsOnly = true, ordinal = 0)
+	private int polarium$copyableSkins(int usage, @org.jspecify.annotations.Nullable String label, int same, GpuFormat format, int width, int height,
+			int layers, int mips) {
+//#else
 @Mixin(GpuDevice.class)
 abstract class SkinTextureUsageMixin {
 	@ModifyVariable(method = "createTexture(Ljava/util/function/Supplier;ILcom/mojang/blaze3d/GpuFormat;IIII)Lcom/mojang/blaze3d/textures/GpuTexture;",
 			at = @At("HEAD"), argsOnly = true, ordinal = 0)
 	private int polarium$copyableSkins(int usage, Supplier<String> label, int same, GpuFormat format, int width, int height, int layers, int mips) {
+//#endif
 		return width == 64 && height == 64 && layers == 1 && mips == 1 && format == GpuFormat.RGBA8_UNORM
 				? usage | GpuTexture.USAGE_COPY_SRC : usage;
 	}

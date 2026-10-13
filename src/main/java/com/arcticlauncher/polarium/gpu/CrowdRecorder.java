@@ -26,6 +26,10 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.QuadParticleRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
+//#if MC >= 26.3
+import net.minecraft.client.renderer.texture.UvMapping;
+import net.minecraft.client.resources.model.geometry.ItemQuads;
+//#endif
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.HumanoidArm;
@@ -141,15 +145,25 @@ final class CrowdRecorder implements SubmitNodeCollector {
 		return stack;
 	}
 
+	//#if MC >= 26.3
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private void model(int order, Model model, Object modelState, PoseStack poseStack, RenderType renderType, int light, int overlay, int tint,
+			@Nullable UvMapping uvMapping, int outline) {
+		PoseStack.Pose pose = poseStack.last().copy();
+		replay.add(c -> c.order(order).submitModel(model, modelState, stackAt(pose), renderType, light, overlay, tint, uvMapping, outline));
+		boolean special = uvMapping != null;
+	//#else
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private void model(int order, Model model, Object modelState, PoseStack poseStack, RenderType renderType, int light, int overlay, int tint,
 			@Nullable TextureAtlasSprite sprite, int outline, ModelFeatureRenderer.@Nullable CrumblingOverlay crumbling) {
 		PoseStack.Pose pose = poseStack.last().copy();
 		replay.add(c -> c.order(order).submitModel(model, modelState, stackAt(pose), renderType, light, overlay, tint, sprite, outline, crumbling));
+		boolean special = sprite != null || crumbling != null;
+	//#endif
 		if (recipe.unsupported != null) {
 			return;
 		}
-		if (modelState != state || sprite != null || outline != 0 || crumbling != null || renderType.isOutline()) {
+		if (modelState != state || special || outline != 0 || renderType.isOutline()) {
 			fail("model drawn specially");
 			return;
 		}
@@ -182,12 +196,22 @@ final class CrowdRecorder implements SubmitNodeCollector {
 				Crowd.bucket(model, renderType, order, owner, borrowIndex)));
 	}
 
+	//#if MC >= 26.3
+	private void item(int order, PoseStack poseStack, ItemDisplayContext context, int light, int overlay, int outline, int[] tints,
+			ItemQuads quads, ItemStackRenderState.FoilType foil) {
+		PoseStack.Pose pose = poseStack.last().copy();
+		// Already a copy the game keeps as it is.
+		BakedQuad[] kept = quads.all().toArray(new BakedQuad[0]);
+		int[] keptTints = tints.clone();
+		replay.add(c -> c.order(order).submitItem(stackAt(pose), context, light, overlay, outline, keptTints, quads, foil));
+	//#else
 	private void item(int order, PoseStack poseStack, ItemDisplayContext context, int light, int overlay, int outline, int[] tints,
 			List<BakedQuad> quads, ItemStackRenderState.FoilType foil) {
 		PoseStack.Pose pose = poseStack.last().copy();
 		BakedQuad[] kept = quads.toArray(new BakedQuad[0]);
 		int[] keptTints = tints.clone();
 		replay.add(c -> c.order(order).submitItem(stackAt(pose), context, light, overlay, outline, keptTints, List.of(kept), foil));
+	//#endif
 		if (recipe.unsupported != null) {
 			return;
 		}
@@ -270,11 +294,41 @@ final class CrowdRecorder implements SubmitNodeCollector {
 		order(0).submitLeash(poseStack, leash);
 	}
 
+	//#if MC >= 26.3
+	@Override
+	public <S> void submitModel(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light, int overlay,
+			int tint, @Nullable UvMapping uvMapping, int outline) {
+		model(0, model, modelState, poseStack, renderType, light, overlay, tint, uvMapping, outline);
+	}
+
+	@Override
+	public <S> void submitCrumblingOverlay(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light,
+			int overlay, int tint, ModelFeatureRenderer.CrumblingOverlay crumbling) {
+		crumbling(0, model, modelState, poseStack, renderType, light, overlay, tint, crumbling);
+	}
+
+	@Override
+	public void submitTextBackground(PoseStack poseStack, float x0, float y0, float x1, float y1, int color, Font.DisplayMode mode, int light) {
+		order(0).submitTextBackground(poseStack, x0, y0, x1, y1, color, mode, light);
+	}
+
+	/** A crumbling overlay on a model (a model drawn specially: the player goes the game's way). */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private void crumbling(int order, Model model, Object modelState, PoseStack poseStack, RenderType renderType, int light, int overlay,
+			int tint, ModelFeatureRenderer.CrumblingOverlay crumbling) {
+		PoseStack.Pose pose = poseStack.last().copy();
+		replay.add(c -> c.order(order).submitCrumblingOverlay(model, modelState, stackAt(pose), renderType, light, overlay, tint, crumbling));
+		if (recipe.unsupported == null) {
+			fail("model drawn specially");
+		}
+	}
+	//#else
 	@Override
 	public <S> void submitModel(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light, int overlay,
 			int tint, @Nullable TextureAtlasSprite sprite, int outline, ModelFeatureRenderer.@Nullable CrumblingOverlay crumbling) {
 		model(0, model, modelState, poseStack, renderType, light, overlay, tint, sprite, outline, crumbling);
 	}
+	//#endif
 
 	@Override
 	public void submitMovingBlock(PoseStack poseStack, MovingBlockRenderState block, int outline) {
@@ -287,10 +341,17 @@ final class CrowdRecorder implements SubmitNodeCollector {
 		order(0).submitBlockModel(poseStack, renderType, parts, tints, light, overlay, outline);
 	}
 
+	//#if MC >= 26.3
+	@Override
+	public void submitBreakingBlockModel(PoseStack poseStack, List<BlockStateModelPart> parts, int progress, boolean translucent) {
+		order(0).submitBreakingBlockModel(poseStack, parts, progress, translucent);
+	}
+	//#else
 	@Override
 	public void submitBreakingBlockModel(PoseStack poseStack, List<BlockStateModelPart> parts, int progress) {
 		order(0).submitBreakingBlockModel(poseStack, parts, progress);
 	}
+	//#endif
 
 	@Override
 	public void submitShapeOutline(PoseStack poseStack, VoxelShape shape, RenderType renderType, int color, float width, boolean afterTerrain) {
@@ -299,7 +360,12 @@ final class CrowdRecorder implements SubmitNodeCollector {
 
 	@Override
 	public void submitItem(PoseStack poseStack, ItemDisplayContext context, int light, int overlay, int outline, int[] tints,
-			List<BakedQuad> quads, ItemStackRenderState.FoilType foil) {
+			//#if MC >= 26.3
+			ItemQuads quads,
+			//#else
+			List<BakedQuad> quads,
+			//#endif
+			ItemStackRenderState.FoilType foil) {
 		item(0, poseStack, context, light, overlay, outline, tints, quads, foil);
 	}
 
@@ -358,11 +424,31 @@ final class CrowdRecorder implements SubmitNodeCollector {
 			other(order, "leash").submitLeash(poseStack, leash);
 		}
 
+		//#if MC >= 26.3
+		@Override
+		public <S> void submitModel(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light, int overlay,
+				int tint, @Nullable UvMapping uvMapping, int outline) {
+			model(order, model, modelState, poseStack, renderType, light, overlay, tint, uvMapping, outline);
+		}
+
+		@Override
+		public <S> void submitCrumblingOverlay(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light,
+				int overlay, int tint, ModelFeatureRenderer.CrumblingOverlay crumbling) {
+			crumbling(order, model, modelState, poseStack, renderType, light, overlay, tint, crumbling);
+		}
+
+		@Override
+		public void submitTextBackground(PoseStack poseStack, float x0, float y0, float x1, float y1, int color, Font.DisplayMode mode,
+				int light) {
+			other(order, "text").submitTextBackground(poseStack, x0, y0, x1, y1, color, mode, light);
+		}
+		//#else
 		@Override
 		public <S> void submitModel(Model<? super S> model, S modelState, PoseStack poseStack, RenderType renderType, int light, int overlay,
 				int tint, @Nullable TextureAtlasSprite sprite, int outline, ModelFeatureRenderer.@Nullable CrumblingOverlay crumbling) {
 			model(order, model, modelState, poseStack, renderType, light, overlay, tint, sprite, outline, crumbling);
 		}
+		//#endif
 
 		@Override
 		public void submitMovingBlock(PoseStack poseStack, MovingBlockRenderState block, int outline) {
@@ -375,10 +461,17 @@ final class CrowdRecorder implements SubmitNodeCollector {
 			other(order, "block").submitBlockModel(poseStack, renderType, parts, tints, light, overlay, outline);
 		}
 
+		//#if MC >= 26.3
+		@Override
+		public void submitBreakingBlockModel(PoseStack poseStack, List<BlockStateModelPart> parts, int progress, boolean translucent) {
+			other(order, "breaking block").submitBreakingBlockModel(poseStack, parts, progress, translucent);
+		}
+		//#else
 		@Override
 		public void submitBreakingBlockModel(PoseStack poseStack, List<BlockStateModelPart> parts, int progress) {
 			other(order, "breaking block").submitBreakingBlockModel(poseStack, parts, progress);
 		}
+		//#endif
 
 		@Override
 		public void submitShapeOutline(PoseStack poseStack, VoxelShape shape, RenderType renderType, int color, float width,
@@ -388,7 +481,12 @@ final class CrowdRecorder implements SubmitNodeCollector {
 
 		@Override
 		public void submitItem(PoseStack poseStack, ItemDisplayContext context, int light, int overlay, int outline, int[] tints,
-				List<BakedQuad> quads, ItemStackRenderState.FoilType foil) {
+				//#if MC >= 26.3
+				ItemQuads quads,
+				//#else
+				List<BakedQuad> quads,
+				//#endif
+				ItemStackRenderState.FoilType foil) {
 			item(order, poseStack, context, light, overlay, outline, tints, quads, foil);
 		}
 

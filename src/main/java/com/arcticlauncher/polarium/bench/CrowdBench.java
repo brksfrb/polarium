@@ -283,7 +283,12 @@ public final class CrowdBench implements ClientModInitializer {
 					player.setPose(crouching ? net.minecraft.world.entity.Pose.CROUCHING : net.minecraft.world.entity.Pose.STANDING);
 				}
 				if (phase == 8 || phase == 14) {
-					player.swing(phase == 8 ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND);
+					net.minecraft.world.InteractionHand hand = phase == 8 ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND;
+					//#if MC >= 26.3
+					player.swing(hand, net.minecraft.world.item.component.SwingAnimation.DEFAULT, false);
+					//#else
+					player.swing(hand);
+					//#endif
 				}
 				pitch = (float) (Math.sin(steps[i] * 0.3 + i) * 50);
 			}

@@ -9,7 +9,9 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.SubmitNodeCollection;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+//#if MC < 26.3
 import net.minecraft.client.renderer.feature.NameTagFeatureRenderer;
+//#endif
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.ARGB;
@@ -151,7 +153,11 @@ public final class CrowdTags {
 
 	/** Whether the crowd's tags can go this way: only when the GPU draws name tags. */
 	static boolean usable() {
+		//#if MC >= 26.3
+		return false;
+		//#else
 		return GpuText.enabled() && !GpuBatches.disabled();
+		//#endif
 	}
 
 	static void beginFrame() {
@@ -341,6 +347,7 @@ public final class CrowdTags {
 
 	/** All entities are in: each list goes to the game as one tag, where the farthest of its tags is. */
 	static void endSubmits(SubmitNodeStorage storage) {
+		//#if MC < 26.3
 		SubmitNodeCollection collection = storage.order(0);
 		if (normal.count > 0 && normal.farthest >= 0) {
 			collection.nameTags.submit(standIn(normal, NORMAL, Font.DisplayMode.NORMAL));
@@ -348,12 +355,15 @@ public final class CrowdTags {
 		if (seeThrough.count > 0 && seeThrough.farthest >= 0) {
 			collection.seeThroughNameTags.submit(standIn(seeThrough, SEE_THROUGH, Font.DisplayMode.SEE_THROUGH));
 		}
+		//#endif
 	}
 
+	//#if MC < 26.3
 	private static NameTagFeatureRenderer.Submit standIn(Tags tags, Component marker, Font.DisplayMode mode) {
 		Matrix4f pose = new Matrix4f().set(tags.pose, tags.farthest * 16);
 		return new NameTagFeatureRenderer.Submit(pose, 0, 0, marker, 0, -1, 0, mode);
 	}
+	//#endif
 
 	/** Whether this tag text stands for a list of the crowd's tags. */
 	public static boolean isList(Component text) {

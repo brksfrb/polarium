@@ -73,6 +73,8 @@ abstract class ArmedStateKeptSlotsMixin implements KeptStates.Slots {
 		}
 	}
 
+	// 26.3 reads the swing from the entity (its current swing), not from the held item.
+	//#if MC < 26.3
 	@WrapOperation(method = "extractArmedEntityRenderState", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/world/item/ItemStack;getSwingAnimation()Lnet/minecraft/world/item/component/SwingAnimation;"))
 	private static net.minecraft.world.item.component.SwingAnimation polarium$keptSwing(ItemStack held,
@@ -88,6 +90,7 @@ abstract class ArmedStateKeptSlotsMixin implements KeptStates.Slots {
 		KeptStates.sameCopy(state, KeptStates.SWING, held, entity.tickCount);
 		return looked;
 	}
+	//#endif
 
 	@WrapOperation(method = "extractArmedEntityRenderState",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;copy()Lnet/minecraft/world/item/ItemStack;", ordinal = 0))

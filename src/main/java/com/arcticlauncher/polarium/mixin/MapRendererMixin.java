@@ -94,6 +94,14 @@ abstract class MapRendererMixin {
 			return this;
 		}
 
+		//#if MC >= 26.3
+		@Override
+		public VertexConsumer setUv3(float a, float b) {
+			to.setUv3(a, b);
+			return this;
+		}
+		//#endif
+
 		@Override
 		public VertexConsumer setNormal(float x, float y, float z) {
 			to.setNormal(x, y, z);

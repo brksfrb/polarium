@@ -349,7 +349,7 @@ public final class LightStates {
 		state.elytraRotY = entity.elytraAnimationState.getRotY(partialTicks);
 		state.elytraRotZ = entity.elytraAnimationState.getRotZ(partialTicks);
 		// ArmedEntityRenderState
-		state.attackTime = entity.getAttackAnim(partialTicks);
+		com.arcticlauncher.polarium.gpu.Swings.extract(entity, state, partialTicks);
 		// AvatarRenderer
 		long t4 = timed ? System.nanoTime() : 0;
 		AvatarRendererLightAccess avatar = (AvatarRendererLightAccess) renderer;

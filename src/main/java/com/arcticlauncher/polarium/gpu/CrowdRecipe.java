@@ -200,7 +200,11 @@ final class CrowdRecipe {
 			ItemStackRenderState.LayerRenderState[] all = access.polarium$layers();
 			for (int i = 0; i < count; i++) {
 				ItemLayerRenderStateAccess layer = (ItemLayerRenderStateAccess) all[i];
+				//#if MC >= 26.3
+				List<BakedQuad> quads = layer.polarium$quads().all();
+				//#else
 				List<BakedQuad> quads = layer.polarium$quads();
+				//#endif
 				int at = i * PER_LAYER;
 				layers[at] = quads.size();
 				layers[at + 1] = quads.isEmpty() ? null : quads.get(0);
@@ -229,7 +233,11 @@ final class CrowdRecipe {
 			ItemStackRenderState.LayerRenderState[] all = access.polarium$layers();
 			for (int i = 0; i < count; i++) {
 				ItemLayerRenderStateAccess layer = (ItemLayerRenderStateAccess) all[i];
+				//#if MC >= 26.3
+				List<BakedQuad> quads = layer.polarium$quads().all();
+				//#else
 				List<BakedQuad> quads = layer.polarium$quads();
+				//#endif
 				int at = i * PER_LAYER;
 				int size = quads.size();
 				if ((Integer) layers[at] != size || (size > 0 && (quads.get(0) != layers[at + 1] || quads.get(size - 1) != layers[at + 2]))

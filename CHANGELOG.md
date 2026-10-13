@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.31.0
+
+- **Minecraft 26.3.** 26.3 moved the game's GPU layer to a new API (one
+  over OpenGL and Vulkan, shaders compiled to SPIR-V) and opens the render
+  passes itself: Polarium's instanced models now draw inside the game's
+  passes (transparency stages included), its data goes up before they open,
+  and its shaders follow the SPIR-V rules. The new swing animation (a swing
+  per hand with its own animation) is worked out the way the game does it.
+  Crowd bench, 1,000 players in view (i9-12900KF, RTX 3080 Ti): 33 FPS
+  without the GPU path, ~145 FPS with it.
+- 26.3 has no name tag renderer of its own any more (name tags are text):
+  GPU name tags are off there for now, and tags are drawn the game's way.
+  Items with see-through parts go the game's way too (26.3 draws those in
+  a later phase of their own).
+
 ## 0.30.0
 
 - Item frames are much cheaper, which matters for map billboards (hundreds

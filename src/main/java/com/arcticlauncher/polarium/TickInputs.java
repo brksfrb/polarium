@@ -49,7 +49,7 @@ public final class TickInputs {
 		h = mix(h, entity.getArrowCount());
 		h = mix(h, entity.getStingerCount());
 		h = mix(h, entity.getMainArm().ordinal());
-		h = mix(h, entity.swingingArm == null ? -1 : entity.swingingArm.ordinal());
+		h = mix(h, com.arcticlauncher.polarium.gpu.Swings.handKey(entity));
 		h = mix(h, Float.floatToRawIntBits(entity.getBbWidth()));
 		h = mix(h, Float.floatToRawIntBits(entity.getBbHeight()));
 		h = mix(h, Float.floatToRawIntBits(entity.getEyeHeight()));
