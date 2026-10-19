@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.31.2
+
+- Fixes a crash on 26.3 ("Pose stack not empty") after the crowd path
+  failed partway through drawing a player: the poses it had pushed stayed
+  on the stack, and the game ended the frame on that. The stack is now put
+  back as it was, the crowd path switches itself off as before, and the
+  game draws on without it.
+
 ## 0.31.1
 
 - Starts next to mods that rewrite the map or item frame drawing (3D Maps,

@@ -341,6 +341,7 @@ public final class Crowd {
 		if (!inLevel || !BULK || count < BULK_MIN || !crowdTags(collector)) {
 			return;
 		}
+		PoseStack.Pose entry = poseStack.last();
 		try {
 			long frame = CrowdFrame.frame;
 			boolean[] take = new boolean[count];
@@ -407,12 +408,18 @@ public final class Crowd {
 				AvatarRenderState state = (AvatarRenderState) states.get(which[k]);
 				if (!state.shadowPieces.isEmpty()) {
 					poseStack.pushPose();
-					poseStack.translate(state.x - camX, state.y - camY, state.z - camZ);
-					collector.submitShadow(poseStack, state.shadowRadius, state.shadowPieces);
-					poseStack.popPose();
+					try {
+						poseStack.translate(state.x - camX, state.y - camY, state.z - camZ);
+						collector.submitShadow(poseStack, state.shadowRadius, state.shadowPieces);
+					} finally {
+						// A failure here is caught below (the crowd path switches off): the stack must still balance,
+						// or the game ends the frame with "Pose stack not empty".
+						poseStack.popPose();
+					}
 				}
 			}
 		} catch (RuntimeException | LinkageError e) {
+			rewind(poseStack, entry);
 			GpuBatches.disable("the crowd path failed", e);
 			inLevel = false;
 		}
@@ -466,6 +473,7 @@ public final class Crowd {
 				|| !eligible(state)) {
 			return false;
 		}
+		PoseStack.Pose entry = poseStack.last();
 		try {
 			long frame = CrowdFrame.frame;
 			// Usually checked already, while the state was made (see precheck).
@@ -513,9 +521,20 @@ public final class Crowd {
 			// Drawn either way: by the recorder's replay, or from the recipe.
 			return true;
 		} catch (RuntimeException | LinkageError e) {
+			rewind(poseStack, entry);
 			GpuBatches.disable("the crowd path failed", e);
 			inLevel = false;
 			return false;
+		}
+	}
+
+	/**
+	 * Back to the stack's top at {@code entry}: a failure partway through a submit leaves the poses it
+	 * pushed, and the game then ends the frame with "Pose stack not empty" (or draws the next entity wrongly).
+	 */
+	private static void rewind(PoseStack poseStack, PoseStack.Pose entry) {
+		while (poseStack.last() != entry && !poseStack.isEmpty()) {
+			poseStack.popPose();
 		}
 	}
 
