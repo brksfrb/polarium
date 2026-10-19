@@ -37,7 +37,7 @@ abstract class ItemFrameModelMixin {
 	private final BlockModelRenderState polarium$none = new BlockModelRenderState();
 
 	/** The game's lookup is skipped; the shared one is used when drawing. */
-	@Redirect(method = "extractRenderState(Lnet/minecraft/world/entity/decoration/ItemFrame;Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;F)V",
+	@Redirect(require = 0, method = "extractRenderState(Lnet/minecraft/world/entity/decoration/ItemFrame;Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;F)V",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/block/BlockModelResolver;updateForItemFrame(Lnet/minecraft/client/renderer/block/BlockModelRenderState;ZZ)V"))
 	private void polarium$skipLookup(BlockModelResolver resolver, BlockModelRenderState state, boolean glowing, boolean map) {
 	}
@@ -46,7 +46,7 @@ abstract class ItemFrameModelMixin {
 	 * A frame showing a map draws the map, never the item; the game still builds the item's model
 	 * for it every frame. Skipped when the map is there to draw (without it the item is drawn).
 	 */
-	@Redirect(method = "extractRenderState(Lnet/minecraft/world/entity/decoration/ItemFrame;Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;F)V",
+	@Redirect(require = 0, method = "extractRenderState(Lnet/minecraft/world/entity/decoration/ItemFrame;Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;F)V",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/item/ItemModelResolver;updateForNonLiving(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/entity/Entity;)V"))
 	private void polarium$skipItemForMap(ItemModelResolver resolver, ItemStackRenderState output, ItemStack item, ItemDisplayContext context, Entity entity) {
 		if (!item.isEmpty() && entity instanceof ItemFrame frame) {
@@ -58,7 +58,7 @@ abstract class ItemFrameModelMixin {
 		resolver.updateForNonLiving(output, item, context, entity);
 	}
 
-	@Redirect(method = "submit(Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+	@Redirect(require = 0, method = "submit(Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
 			at = @At(value = "FIELD", opcode = org.objectweb.asm.Opcodes.GETFIELD,
 					target = "Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;frameModel:Lnet/minecraft/client/renderer/block/BlockModelRenderState;"))
 	private BlockModelRenderState polarium$sharedModel(ItemFrameRenderState state) {

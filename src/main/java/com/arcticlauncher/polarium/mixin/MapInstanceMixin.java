@@ -16,13 +16,13 @@ abstract class MapInstanceMixin {
 	@org.spongepowered.asm.mixin.Final
 	private Identifier location;
 
-	@Inject(method = "updateTextureIfNeeded", at = @At(value = "INVOKE", shift = At.Shift.AFTER,
+	@Inject(method = "updateTextureIfNeeded", require = 0, at = @At(value = "INVOKE", shift = At.Shift.AFTER,
 			target = "Lnet/minecraft/client/renderer/texture/DynamicTexture;upload()V"))
 	private void polarium$changed(CallbackInfo ci) {
 		MapAtlas.changed(location);
 	}
 
-	@Inject(method = "close", at = @At("HEAD"))
+	@Inject(method = "close", at = @At("HEAD"), require = 0)
 	private void polarium$closed(CallbackInfo ci) {
 		MapAtlas.gone(location);
 	}

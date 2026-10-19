@@ -19,18 +19,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * A map's picture is drawn with the texture of its place in the shared map atlas
  * (see {@link MapAtlas}) instead of its own, so maps share draws. Everything
  * else about the drawing, the shape, light and markers, is the game's.
+ * <p>
+ * Optional: mods that rewrite the map drawing (3D Maps, for one) leave nothing here to hook, and then
+ * the maps are simply drawn the game's way, instead of the game failing to start.
  */
 @Mixin(MapRenderer.class)
 abstract class MapRendererMixin {
 	/** The map being drawn (the game draws one at a time, on the render thread). */
 	private static final ThreadLocal<MapRenderState> polarium$current = new ThreadLocal<>();
 
-	@Inject(method = "render", at = @At("HEAD"))
+	@Inject(method = "render", at = @At("HEAD"), require = 0)
 	private void polarium$begin(MapRenderState state, PoseStack pose, SubmitNodeCollector collector, boolean inHand, int light, CallbackInfo ci) {
 		polarium$current.set(state);
 	}
 
-	@Redirect(method = "render", at = @At(value = "INVOKE", ordinal = 0,
+	@Redirect(method = "render", require = 0, at = @At(value = "INVOKE", ordinal = 0,
 			target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitCustomGeometry(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/rendertype/RenderType;Lnet/minecraft/client/renderer/SubmitNodeCollector$CustomGeometryRenderer;)V"))
 	private void polarium$picture(SubmitNodeCollector collector, PoseStack pose, RenderType type, SubmitNodeCollector.CustomGeometryRenderer picture) {
 		MapRenderState state = polarium$current.get();

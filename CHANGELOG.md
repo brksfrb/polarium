@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.31.1
+
+- Starts next to mods that rewrite the map or item frame drawing (3D Maps,
+  for one). The map atlas and the shared item frame models hook into code
+  those mods replace; where there is nothing to hook, Polarium now leaves
+  maps and item frames to the game instead of stopping it from starting
+  ("Critical injection failure ... MapRendererMixin").
+
 ## 0.31.0
 
 - **Minecraft 26.3.** 26.3 moved the game's GPU layer to a new API (one
