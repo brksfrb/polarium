@@ -52,10 +52,19 @@ final class ItemMesh extends GpuMesh {
 		return meshes;
 	}
 
+	/** One mesh of all these quads, drawn with {@code type} (a block model's quads: the submit names the render type, not the quads). */
+	static ItemMesh buildAs(BakedQuad[] quads, RenderType type) {
+		return build(quads, type, true);
+	}
+
 	private static ItemMesh build(BakedQuad[] quads, RenderType type) {
+		return build(quads, type, false);
+	}
+
+	private static ItemMesh build(BakedQuad[] quads, RenderType type, boolean all) {
 		int vertexCount = 0;
 		for (BakedQuad quad : quads) {
-			if (quad.materialInfo().itemRenderType() == type) {
+			if (all || quad.materialInfo().itemRenderType() == type) {
 				vertexCount += BakedQuad.VERTEX_COUNT;
 			}
 		}
@@ -64,7 +73,7 @@ final class ItemMesh extends GpuMesh {
 		try {
 			for (BakedQuad quad : quads) {
 				BakedQuad.MaterialInfo material = quad.materialInfo();
-				if (material.itemRenderType() != type) {
+				if (!all && material.itemRenderType() != type) {
 					continue;
 				}
 				Vector3fc normal = quad.direction().getUnitVec3f();

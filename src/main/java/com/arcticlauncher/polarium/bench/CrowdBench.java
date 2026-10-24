@@ -52,6 +52,12 @@ public final class CrowdBench implements ClientModInitializer {
 	 * move them), not mannequins. Their ticking is what a real crowd costs.
 	 */
 	private static final boolean PLAYERS = "players".equals(System.getProperty("polarium.bench.kind"));
+	/**
+	 * -Dpolarium.bench.kind=tnt: the crowd is primed TNT (client side, fuses cycling so some are always
+	 * flashing and pulsing), a block pile as in a TNT-spam fight.
+	 */
+	private static final boolean TNT = "tnt".equals(System.getProperty("polarium.bench.kind"));
+	private static final List<net.minecraft.world.entity.item.PrimedTnt> TNT_CROWD = new ArrayList<>();
 	/** Filled once (render thread) before the players exist; only read after. */
 	private static final java.util.Map<java.util.UUID, net.minecraft.world.entity.player.PlayerSkin> PLAYER_SKINS = new java.util.HashMap<>();
 	private static final List<net.minecraft.client.player.RemotePlayer> PLAYER_CROWD = new ArrayList<>();
@@ -84,7 +90,7 @@ public final class CrowdBench implements ClientModInitializer {
 	/** With the wall: how many screenshots in a row (40 ms apart). */
 	private static final int FLICKER_SHOTS = Integer.getInteger("polarium.bench.shots", 2);
 	/** Bigger crowds stand closer, so all of them stay within entity tracking and drawing range. */
-	private static final double SPACING = COUNT > 1000 ? 1.0 : 1.5;
+	private static final double SPACING = TNT ? 0.5 : COUNT > 1000 ? 1.0 : 1.5;
 	/** 34 blocks up for 1,000; a little higher for bigger crowds (but within range of the farthest). */
 	private static final int CAMERA_HEIGHT = Math.min(44, Math.max(34, (int) Math.ceil(Math.sqrt(COUNT) * SPACING * 0.55)));
 	private static final int SUMMONS_PER_TICK = 40;
@@ -172,7 +178,38 @@ public final class CrowdBench implements ClientModInitializer {
 		if (PLAYERS) {
 			spawnPlayers(side, offset);
 		}
+		if (TNT) {
+			spawnTnt(side, offset);
+		}
 		sendInBatches(commands, 0);
+	}
+
+	/** The crowd as client-side primed TNT, standing on the ground in a tight grid. */
+	private static void spawnTnt(int side, double offset) {
+		Minecraft mc = Minecraft.getInstance();
+		for (int i = 0; i < COUNT; i++) {
+			double x = (i % side) * SPACING - offset;
+			double z = (i / side) * SPACING - offset;
+			net.minecraft.world.entity.item.PrimedTnt tnt = new net.minecraft.world.entity.item.PrimedTnt(mc.level, x, GROUND, z, null);
+			tnt.setId(3_000_000 + i);
+			tnt.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+			tnt.setFuse(1 + (i * 7) % 80);
+			mc.level.addEntity(tnt);
+			TNT_CROWD.add(tnt);
+		}
+		LOG.info("crowd bench: {} primed TNT", COUNT);
+		// Fuses go round 80..1 again and again (never reaching 0, so none explodes), 3 in 8 within the flashing last 10 ticks.
+		TIMER.scheduleAtFixedRate(() -> run(CrowdBench::cycleFuses), 50, 50, TimeUnit.MILLISECONDS);
+	}
+
+	private static void cycleFuses() {
+		walkTick++;
+		for (int i = 0; i < TNT_CROWD.size(); i++) {
+			net.minecraft.world.entity.item.PrimedTnt tnt = TNT_CROWD.get(i);
+			if (!tnt.isRemoved() && tnt.getFuse() <= 2) {
+				tnt.setFuse(80);
+			}
+		}
 	}
 
 	/** The crowd as client-side players, each with its own skin, armor and items, walking in small circles. */
