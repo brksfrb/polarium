@@ -57,6 +57,8 @@ public final class CrowdBench implements ClientModInitializer {
 	 * flashing and pulsing), a block pile as in a TNT-spam fight.
 	 */
 	private static final boolean TNT = "tnt".equals(System.getProperty("polarium.bench.kind"));
+	/** -Dpolarium.bench.fuse=N: every TNT starts with this fuse (a long one: none burns out during the run). */
+	private static final int TNT_FUSE = Integer.getInteger("polarium.bench.fuse", 0);
 	private static final List<net.minecraft.world.entity.item.PrimedTnt> TNT_CROWD = new ArrayList<>();
 	/** Filled once (render thread) before the players exist; only read after. */
 	private static final java.util.Map<java.util.UUID, net.minecraft.world.entity.player.PlayerSkin> PLAYER_SKINS = new java.util.HashMap<>();
@@ -193,7 +195,7 @@ public final class CrowdBench implements ClientModInitializer {
 			net.minecraft.world.entity.item.PrimedTnt tnt = new net.minecraft.world.entity.item.PrimedTnt(mc.level, x, GROUND, z, null);
 			tnt.setId(3_000_000 + i);
 			tnt.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-			tnt.setFuse(1 + (i * 7) % 80);
+			tnt.setFuse(TNT_FUSE > 0 ? TNT_FUSE : 1 + (i * 7) % 80);
 			mc.level.addEntity(tnt);
 			TNT_CROWD.add(tnt);
 		}
@@ -217,7 +219,7 @@ public final class CrowdBench implements ClientModInitializer {
 				net.minecraft.world.entity.item.PrimedTnt tnt = new net.minecraft.world.entity.item.PrimedTnt(mc.level, x, GROUND, z, null);
 				tnt.setId(nextTntId++);
 				tnt.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-				tnt.setFuse(80);
+				tnt.setFuse(TNT_FUSE > 0 ? TNT_FUSE : 80);
 				mc.level.addEntity(tnt);
 				TNT_CROWD.set(i, tnt);
 			}
