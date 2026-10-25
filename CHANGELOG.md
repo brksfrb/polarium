@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.31.3
+
+- Fixes a crash when joining servers that spawn mobs in a bundle (SyroMC's shulkers:
+  "Network Protocol Error"): a mob still being created has no attributes yet,
+  and the game answers scale 1.0 for it, as Polarium now does.
+
 ## 0.31.2
 
 - Fixes a crash on 26.3 ("Pose stack not empty") after the crowd path
