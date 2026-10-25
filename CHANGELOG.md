@@ -9,6 +9,11 @@
   (the tick that ends a fuse stays on the game's thread). With 10,000 TNT
   in view the client tick dropped from about 1.1 s to about 70 ms a frame.
   Off with `-Dpolarium.parallelTicks=false`.
+- Primed TNT no longer goes through every entity near it on each move looking
+  for something to bump into (boats, shulkers, minecarts) when the level has
+  no such entity: in a pile that search was most of the tick, and it found
+  nothing. The answer is the same empty list; any entity that can be bumped
+  into brings the full search back.
 
 ## 0.31.2
 
