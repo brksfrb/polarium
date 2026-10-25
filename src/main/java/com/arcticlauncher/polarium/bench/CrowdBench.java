@@ -198,16 +198,28 @@ public final class CrowdBench implements ClientModInitializer {
 			TNT_CROWD.add(tnt);
 		}
 		LOG.info("crowd bench: {} primed TNT", COUNT);
-		// Fuses go round 80..1 again and again (never reaching 0, so none explodes), 3 in 8 within the flashing last 10 ticks.
+		// Fuses burn down from 80 (some start part way), flash and pulse, and run out; the gone ones are replaced.
 		TIMER.scheduleAtFixedRate(() -> run(CrowdBench::cycleFuses), 50, 50, TimeUnit.MILLISECONDS);
 	}
 
+	private static int nextTntId = 3_000_000 + COUNT;
+
+	/** Fuses run out as in a fight; a TNT that is gone is replaced by a new one in its place, so the crowd stays the same size. */
 	private static void cycleFuses() {
 		walkTick++;
+		Minecraft mc = Minecraft.getInstance();
+		int side = (int) Math.ceil(Math.sqrt(COUNT));
+		double offset = (side - 1) * SPACING / 2;
 		for (int i = 0; i < TNT_CROWD.size(); i++) {
-			net.minecraft.world.entity.item.PrimedTnt tnt = TNT_CROWD.get(i);
-			if (!tnt.isRemoved() && tnt.getFuse() <= 2) {
+			if (TNT_CROWD.get(i).isRemoved()) {
+				double x = (i % side) * SPACING - offset;
+				double z = (i / side) * SPACING - offset;
+				net.minecraft.world.entity.item.PrimedTnt tnt = new net.minecraft.world.entity.item.PrimedTnt(mc.level, x, GROUND, z, null);
+				tnt.setId(nextTntId++);
+				tnt.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
 				tnt.setFuse(80);
+				mc.level.addEntity(tnt);
+				TNT_CROWD.set(i, tnt);
 			}
 		}
 	}
