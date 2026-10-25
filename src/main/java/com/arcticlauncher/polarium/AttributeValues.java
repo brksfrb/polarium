@@ -44,6 +44,9 @@ public final class AttributeValues {
 	 * every other entity's kept values stale.
 	 */
 	public static long version(LivingEntity entity) {
-		return ((Versioned) entity.getAttributes()).polarium$version();
+		Object attributes = entity.getAttributes();
+		// Not made yet: a mob's constructor asks for its scale (to size its box) before the
+		// entity's own fields exist. -1 matches no kept value, so the game's own answer is used.
+		return attributes == null ? -1L : ((Versioned) attributes).polarium$version();
 	}
 }
