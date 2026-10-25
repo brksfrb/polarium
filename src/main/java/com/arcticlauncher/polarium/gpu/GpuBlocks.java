@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class GpuBlocks {
 	private static final Logger LOG = LoggerFactory.getLogger("Polarium");
+	/** Off with -Dpolarium.blocks=false: block models stay on the game's path. */
+	private static final boolean ON = !"false".equals(System.getProperty("polarium.blocks"));
 	private static final Identifier ITEM_SHADER = Identifier.withDefaultNamespace("core/item");
 	private static final Direction[] DIRECTIONS = Direction.values();
 	/** More distinct models than this in use (models rebuilt every frame by a mod, say) and new ones stay on the game's path. */
@@ -41,7 +43,7 @@ public final class GpuBlocks {
 
 	/** Take this block onto the GPU path; false to let the game build its vertices. */
 	public boolean capture(BlockModelFeatureRenderer.Submit submit) {
-		if (!batches.preparing() || submit.sheetedDecalPose() != null || submit.tintColor() != -1
+		if (!ON || !batches.preparing() || submit.sheetedDecalPose() != null || submit.tintColor() != -1
 				|| submit.modelParts().isEmpty()) {
 			return false;
 		}

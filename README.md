@@ -91,7 +91,7 @@ Polarium looks at what other mods change before taking anything over:
 Turn things off with JVM arguments if something looks wrong:
 `-Dpolarium.off=true` (everything), `-Dpolarium.parallelTicks=false`,
 `-Dpolarium.parallelExtract=false`, `-Dpolarium.lightStates=false`,
-`-Dpolarium.crowd=false`, `-Dpolarium.skeleton=false`,
+`-Dpolarium.crowd=false`, `-Dpolarium.blocks=false`, `-Dpolarium.skeleton=false`,
 `-Dpolarium.helpers=N` (helper threads; default two thirds of your CPU's
 threads, up to 16). `-Dpolarium.debugTimeline=true` logs where each frame's
 time goes.
