@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Other players (and mannequins) ticked on several threads. With thousands of players in
+ * Other players (and mannequins, and primed TNT) ticked on several threads. With thousands of players in
  * view, the client's own tick of each (smoothing its position, its walk
  * animation and head turn, its effects and pose) is a third of the time.
  * Each player's tick mostly touches only that player, so they're set aside
@@ -65,7 +65,17 @@ public final class ParallelTicks {
 	 */
 	private static boolean playerLike(Entity entity) {
 		Class<?> type = entity.getClass();
-		return type == RemotePlayer.class || type == net.minecraft.client.entity.ClientMannequin.class;
+		return type == RemotePlayer.class || type == net.minecraft.client.entity.ClientMannequin.class || primedTnt(entity);
+	}
+
+	/**
+	 * Primed TNT with more than one tick of fuse left: its client tick is just gravity, movement against
+	 * the (only read) world, block effects and a smoke puff. The tick that ends the fuse removes the
+	 * entity from the level, which only the render thread may do: that one is ticked the game's way.
+	 */
+	private static boolean primedTnt(Entity entity) {
+		return entity.getClass() == net.minecraft.world.entity.item.PrimedTnt.class
+				&& ((net.minecraft.world.entity.item.PrimedTnt) entity).getFuse() > 1;
 	}
 
 	/** Whether work reaching outside the entity being ticked must wait (see {@link #defer}). */
