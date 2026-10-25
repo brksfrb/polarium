@@ -35,6 +35,7 @@ abstract class ClientLevelParallelTicksMixin {
 	@Inject(method = "tickEntities", at = @At("HEAD"))
 	private void polarium$begin(CallbackInfo ci) {
 		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.TICK_ENTITIES);
+		com.arcticlauncher.polarium.CollidableEntities.update(polarium$self().entitiesForRendering());
 		ParallelTicks.begin();
 	}
 

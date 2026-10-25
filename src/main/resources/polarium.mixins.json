@@ -21,6 +21,7 @@
 		"RenderTypeFeatureRendererMixin",
 		"ShaderSourceMixin",
 		"ItemFeatureRendererMixin",
+		"EntityCollideMixin",
 		"BlockModelFeatureRendererMixin",
 		"ItemSubmitMixin",
 		"SkinTextureUsageMixin",
