@@ -163,7 +163,7 @@ public final class CrowdBench implements ClientModInitializer {
 		commands.add("gamerule advance_weather false");
 		commands.add("time set noon");
 		commands.add("setblock 0 " + (GROUND + CAMERA_HEIGHT - 1) + " 0 minecraft:glass");
-		for (int i = 0; i < (PLAYERS ? 0 : COUNT); i++) {
+		for (int i = 0; i < (PLAYERS || TNT ? 0 : COUNT); i++) {
 			double x = (i % side) * SPACING - offset;
 			double z = (i / side) * SPACING - offset;
 			commands.add(String.format(java.util.Locale.ROOT,
