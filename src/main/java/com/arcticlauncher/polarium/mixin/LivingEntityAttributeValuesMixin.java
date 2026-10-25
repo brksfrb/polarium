@@ -70,7 +70,10 @@ abstract class LivingEntityAttributeValuesMixin implements AttributeValues.Holde
 			return polarium$scale;
 		}
 		float value = scale.call();
-		polarium$scale(value, version);
+		// Under construction (no attribute map yet): answered, not kept.
+		if (version >= 0) {
+			polarium$scale(value, version);
+		}
 		return value;
 	}
 }
