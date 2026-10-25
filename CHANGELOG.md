@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn
+  as entities, falling blocks for one) is drawn on the GPU like held items,
+  with the same flash and pulse. Off with `-Dpolarium.blocks=false`.
+- Primed TNT is ticked on the helper threads with the other crowd entities
+  (the tick that ends a fuse stays on the game's thread). With 10,000 TNT
+  in view the client tick dropped from about 1.1 s to about 70 ms a frame.
+  Off with `-Dpolarium.parallelTicks=false`.
+
 ## 0.31.2
 
 - Fixes a crash on 26.3 ("Pose stack not empty") after the crowd path
