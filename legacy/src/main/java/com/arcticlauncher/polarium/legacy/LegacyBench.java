@@ -100,8 +100,9 @@ public final class LegacyBench {
 		double avgMs = total / 1e6 / times.length;
 		double p99Ms = sorted[(int) (sorted.length * 0.99)] / 1e6;
 		double worstMs = sorted[sorted.length - 1] / 1e6;
-		String line = String.format("flags=%s frames=%d avg=%.2fms (%.1f FPS) p99=%.2fms (%.1f FPS) worst=%.2fms | ms/frame: %s",
-				Flags.describe(), times.length, avgMs, 1000 / avgMs, p99Ms, 1000 / p99Ms, worstMs, Phases.report(times.length));
+		String scene = client.worldRenderer.getChunksDebugString() + " / " + client.worldRenderer.getEntitiesDebugString();
+		String line = String.format("scene=[%s] flags=%s frames=%d avg=%.2fms (%.1f FPS) p99=%.2fms (%.1f FPS) worst=%.2fms | ms/frame: %s",
+				scene, Flags.describe(), times.length, avgMs, 1000 / avgMs, p99Ms, 1000 / p99Ms, worstMs, Phases.report(times.length));
 		System.out.println("[Polarium] bench " + line);
 		try (PrintWriter out = new PrintWriter(new File(client.runDirectory, "polarium-bench.txt"), "UTF-8")) {
 			out.println(line);
