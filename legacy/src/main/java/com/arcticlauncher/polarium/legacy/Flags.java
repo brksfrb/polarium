@@ -5,6 +5,9 @@ public final class Flags {
 	/** The terrain visibility walk without per-chunk garbage. */
 	public static final boolean TERRAIN = on("terrain");
 
+	/** Check every terrain walk against the game's own (slow; for tests). */
+	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
+
 	private Flags() {
 	}
 

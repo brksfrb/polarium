@@ -7,7 +7,11 @@
 		"PhasesWorldRendererMixin",
 		"PhasesGameRendererMixin",
 		"PhasesParticleManagerMixin",
-		"PhasesMinecraftClientMixin"
+		"PhasesMinecraftClientMixin",
+		"WorldRendererTerrainMixin",
+		"BuiltChunkIndexAccess",
+		"CullingCameraViewAccess",
+		"StorageAccess"
 	],
 	"injectors": {
 		"defaultRequire": 1

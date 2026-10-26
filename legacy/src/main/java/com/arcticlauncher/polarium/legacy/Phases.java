@@ -18,8 +18,10 @@ public final class Phases {
 	public static final int WEATHER = 8;
 	public static final int HAND = 9;
 	public static final int DISPLAY = 10;
+	public static final int OPEN_FACES = 11;
+	public static final int WALK = 12;
 	private static final String[] NAMES = {"tick", "renderWorld", "sky", "clouds", "terrainSetup", "terrainDraw", "entities",
-			"particles", "weather", "hand", "display"};
+			"particles", "weather", "hand", "display", "openFaces", "walk"};
 
 	private static final long[] START = new long[NAMES.length];
 	private static final long[] TOTAL = new long[NAMES.length];
