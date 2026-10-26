@@ -1,0 +1,18 @@
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		maven {
+			name = 'Legacy Fabric'
+			url = 'https://maven.legacyfabric.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+}
+
+// Polarium for old Minecraft on Legacy Fabric (1.8.9 first). Build from the repo root:
+// ./gradlew -p legacy build -Pminecraft_version=1.8.9
+rootProject.name = 'polarium-legacy'

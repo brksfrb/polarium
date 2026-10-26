@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "com.arcticlauncher.polarium.legacy.mixin",
+	"compatibilityLevel": "JAVA_8",
+	"client": [
+		"MinecraftClientBenchMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

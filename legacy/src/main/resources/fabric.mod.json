@@ -1,0 +1,23 @@
+{
+	"schemaVersion": 1,
+	"id": "polarium",
+	"version": "${version}",
+	"name": "Polarium",
+	"description": "Performance for old Minecraft: cheaper terrain and entity rendering, no quality loss.",
+	"authors": ["brksfrb"],
+	"contact": {
+		"sources": "https://github.com/brksfrb/polarium",
+		"issues": "https://github.com/brksfrb/polarium/issues"
+	},
+	"license": "GPL-3.0-or-later",
+	"icon": "assets/polarium/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.arcticlauncher.polarium.legacy.PolariumLegacy"]
+	},
+	"mixins": ["polarium-legacy.mixins.json"],
+	"depends": {
+		"fabricloader": ">=0.16.0",
+		"minecraft": ${minecraft_range}
+	}
+}
