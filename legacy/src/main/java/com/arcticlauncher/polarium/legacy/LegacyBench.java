@@ -77,6 +77,7 @@ public final class LegacyBench {
 			if (frame >= WARMUP_FRAMES) {
 				phase = 3;
 				times = new long[MEASURED_FRAMES];
+				Phases.startCounting();
 				System.out.println("[Polarium] bench measuring");
 			}
 		} else if (phase == 3) {
@@ -99,8 +100,8 @@ public final class LegacyBench {
 		double avgMs = total / 1e6 / times.length;
 		double p99Ms = sorted[(int) (sorted.length * 0.99)] / 1e6;
 		double worstMs = sorted[sorted.length - 1] / 1e6;
-		String line = String.format("flags=%s frames=%d avg=%.2fms (%.1f FPS) p99=%.2fms (%.1f FPS) worst=%.2fms",
-				Flags.describe(), times.length, avgMs, 1000 / avgMs, p99Ms, 1000 / p99Ms, worstMs);
+		String line = String.format("flags=%s frames=%d avg=%.2fms (%.1f FPS) p99=%.2fms (%.1f FPS) worst=%.2fms | ms/frame: %s",
+				Flags.describe(), times.length, avgMs, 1000 / avgMs, p99Ms, 1000 / p99Ms, worstMs, Phases.report(times.length));
 		System.out.println("[Polarium] bench " + line);
 		try (PrintWriter out = new PrintWriter(new File(client.runDirectory, "polarium-bench.txt"), "UTF-8")) {
 			out.println(line);
