@@ -61,6 +61,7 @@ public final class LegacyBench {
 		client.options.vsync = false;
 		client.options.maxFramerate = 260;
 		client.options.hudHidden = true;
+		client.options.pauseOnLostFocus = false;
 		client.player.abilities.allowFlying = true;
 		client.player.abilities.flying = true;
 		if (phase == 1) {
