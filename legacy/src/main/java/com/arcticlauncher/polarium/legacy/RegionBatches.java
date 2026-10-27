@@ -6,6 +6,7 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.List;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.world.ChunkAssemblyHelper;
 import net.minecraft.client.render.world.ChunkRenderHelperImpl;
 import net.minecraft.client.world.BuiltChunk;
 import net.minecraft.util.math.BlockPos;
@@ -27,6 +28,8 @@ public final class RegionBatches {
 
 	private int[] lists = new int[0];
 	private int[] group = new int[0];
+	private int[] regionXOf = new int[0];
+	private int[] regionZOf = new int[0];
 	private int[] regionX = new int[0];
 	private int[] regionZ = new int[0];
 	private int[] start = new int[0];
@@ -45,10 +48,46 @@ public final class RegionBatches {
 			return;
 		}
 		ensure(count);
+		for (int i = 0; i < count; i++) {
+			BuiltChunk section = sections.get(i);
+			put(i, listOf(section, layer), section.getPos());
+		}
+		draw(count, layer == RenderLayer.TRANSLUCENT, viewX, viewY, viewZ);
+	}
+
+	/**
+	 * One pass over the visible sections for one layer: skips the sections with nothing in this layer and draws
+	 * the rest, region by region. Translucent goes from the far end of the list to the near end like the game.
+	 * Returns how many sections had something in this layer (what the game's own pass returns).
+	 */
+	public int renderVisible(BuiltChunk[] visible, int total, RenderLayer layer, double viewX, double viewY, double viewZ) {
+		ensure(total);
 		boolean ordered = layer == RenderLayer.TRANSLUCENT;
-		int groups = ordered ? runs(sections, layer, count) : byRegion(sections, layer, count);
+		int found = 0;
+		for (int k = 0; k < total; k++) {
+			BuiltChunk section = visible[ordered ? total - 1 - k : k];
+			ChunkRenderHelperImpl impl = (ChunkRenderHelperImpl) section;
+			ChunkAssemblyHelper helper = impl.method_10170();
+			if (!helper.method_10149(layer)) {
+				put(found++, impl.method_10153(layer, helper), section.getPos());
+			}
+		}
+		if (found > 0) {
+			draw(found, ordered, viewX, viewY, viewZ);
+		}
+		return found;
+	}
+
+	private void put(int i, int list, BlockPos pos) {
+		lists[i] = list;
+		regionXOf[i] = Regions.origin(pos.getX());
+		regionZOf[i] = Regions.origin(pos.getZ());
+	}
+
+	private void draw(int count, boolean ordered, double viewX, double viewY, double viewZ) {
+		int groups = ordered ? runs(count) : byRegion(count);
 		if (groups < 0) {
-			groups = runs(sections, layer, count);
+			groups = runs(count);
 		}
 		layout(count, groups);
 		for (int g = 0; g < groups; g++) {
@@ -66,15 +105,12 @@ public final class RegionBatches {
 	}
 
 	/** Groups by order of first appearance; returns the group count, or -1 when there are too many regions. */
-	private int byRegion(List<BuiltChunk> sections, RenderLayer layer, int count) {
+	private int byRegion(int count) {
 		stamp++;
 		int groups = 0;
 		for (int i = 0; i < count; i++) {
-			BuiltChunk section = sections.get(i);
-			lists[i] = listOf(section, layer);
-			BlockPos pos = section.getPos();
-			int rx = Regions.origin(pos.getX());
-			int rz = Regions.origin(pos.getZ());
+			int rx = regionXOf[i];
+			int rz = regionZOf[i];
 			long key = (long) rx << 32 ^ (rz & 0xFFFFFFFFL);
 			int slot = (int) ((key * 0x9E3779B97F4A7C15L) >>> (64 - TABLE_BITS));
 			while (tableStamp[slot] == stamp && tableKey[slot] != key) {
@@ -97,16 +133,13 @@ public final class RegionBatches {
 	}
 
 	/** Groups consecutive sections of one region; returns the group count. */
-	private int runs(List<BuiltChunk> sections, RenderLayer layer, int count) {
+	private int runs(int count) {
 		int groups = 0;
 		int lastX = 0;
 		int lastZ = 0;
 		for (int i = 0; i < count; i++) {
-			BuiltChunk section = sections.get(i);
-			lists[i] = listOf(section, layer);
-			BlockPos pos = section.getPos();
-			int rx = Regions.origin(pos.getX());
-			int rz = Regions.origin(pos.getZ());
+			int rx = regionXOf[i];
+			int rz = regionZOf[i];
 			if (i == 0 || rx != lastX || rz != lastZ) {
 				regionX[groups] = rx;
 				regionZ[groups] = rz;
@@ -160,6 +193,8 @@ public final class RegionBatches {
 		int size = Math.max(count, 1024);
 		lists = new int[size];
 		group = new int[size];
+		regionXOf = new int[size];
+		regionZOf = new int[size];
 		regionX = new int[size];
 		regionZ = new int[size];
 		start = new int[size];

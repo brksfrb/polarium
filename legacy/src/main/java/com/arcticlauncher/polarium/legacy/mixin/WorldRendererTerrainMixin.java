@@ -4,6 +4,7 @@ import com.arcticlauncher.polarium.legacy.EntitySections;
 import com.arcticlauncher.polarium.legacy.Flags;
 import com.arcticlauncher.polarium.legacy.OpenFacesCache;
 import com.arcticlauncher.polarium.legacy.Phases;
+import com.arcticlauncher.polarium.legacy.RegionBatches;
 import com.arcticlauncher.polarium.legacy.TerrainWalk;
 import com.google.common.collect.Sets;
 import java.lang.reflect.Constructor;
@@ -14,11 +15,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BaseFrustum;
 import net.minecraft.client.render.BuiltChunkStorage;
 import net.minecraft.client.render.CameraView;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
 import net.minecraft.client.render.world.AbstractChunkRenderManager;
+import net.minecraft.client.render.world.ListedChunkRenderManager;
 import net.minecraft.client.world.BuiltChunk;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.client.render.DiffuseLighting;
+import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -30,6 +35,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -87,6 +93,12 @@ abstract class WorldRendererTerrainMixin {
 	private Set<BuiltChunk> chunksToRebuild;
 	@Shadow
 	private ChunkBuilder chunkBuilder;
+	@Shadow
+	private double lastTranslucentSortX;
+	@Shadow
+	private double lastTranslucentSortY;
+	@Shadow
+	private double lastTranslucentSortZ;
 
 	@Unique
 	private final TerrainWalk polarium$walk = new TerrainWalk();
@@ -250,6 +262,49 @@ abstract class WorldRendererTerrainMixin {
 		Set<Direction> fresh = getOpenChunkFaces(blockPos);
 		polarium$openFaces.put(blockPos, chunk, fresh);
 		return fresh;
+	}
+
+	@Unique
+	private final RegionBatches polarium$layerBatches = new RegionBatches();
+
+	/**
+	 * One layer of terrain: the game filters the visible sections once per layer and hands the survivors on, and
+	 * the render manager then reads each one again. Here the visible array is walked once and drawn region by region.
+	 */
+	@Inject(method = "renderLayer(Lnet/minecraft/client/render/RenderLayer;DILnet/minecraft/entity/Entity;)I", at = @At("HEAD"), cancellable = true)
+	private void polarium$renderLayer(RenderLayer layer, double tickDelta, int anaglyph, Entity entity, CallbackInfoReturnable<Integer> cir) {
+		if (!Flags.REGIONS || !polarium$ownList || !(chunkRenderManager instanceof ListedChunkRenderManager)) {
+			return;
+		}
+		TerrainWalk walk = polarium$walk;
+		int total = walk.visibleCount;
+		DiffuseLighting.disable();
+		if (layer == RenderLayer.TRANSLUCENT) {
+			double dx = entity.x - lastTranslucentSortX;
+			double dy = entity.y - lastTranslucentSortY;
+			double dz = entity.z - lastTranslucentSortZ;
+			if (dx * dx + dy * dy + dz * dz > 1.0) {
+				lastTranslucentSortX = entity.x;
+				lastTranslucentSortY = entity.y;
+				lastTranslucentSortZ = entity.z;
+				int queued = 0;
+				for (int n = 0; n < total; n++) {
+					BuiltChunk section = walk.visible[n];
+					if (section.method_10170().isUnused(layer) && queued++ < 15) {
+						chunkBuilder.method_10133(section);
+					}
+				}
+			}
+		}
+		int found = 0;
+		client.gameRenderer.enableLightmap();
+		AbstractManagerAccess access = (AbstractManagerAccess) chunkRenderManager;
+		if (access.polarium$ready()) {
+			found = polarium$layerBatches.renderVisible(walk.visible, total, layer, access.polarium$viewX(), access.polarium$viewY(), access.polarium$viewZ());
+			GlStateManager.clearColor();
+		}
+		client.gameRenderer.disableLightmap();
+		cir.setReturnValue(found);
 	}
 
 	/** The first pass over the visible sections (entities): only the ones that hold an entity, in the same order. */

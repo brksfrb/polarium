@@ -70,6 +70,9 @@ resets every section), walk on the arrays. Uncertain gain: memory misses are the
   visible list instead of once per layer.
 - Translucent resort check and `chunkBuilder` bookkeeping: unchanged (cheap).
 
+Built (part of region switch): the per-layer filter pass and the render manager's second read of each section are one
+pass over the walk's visible array (`RegionBatches.renderVisible`); the manager's helper list is no longer filled.
+
 ### 8. GL state
 `GlStateManager` already skips repeated state; the remaining repeated calls are the matrix pushes removed by item 2.
 Nothing separate to do.
