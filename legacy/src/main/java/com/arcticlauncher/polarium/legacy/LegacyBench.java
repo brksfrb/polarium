@@ -61,18 +61,22 @@ public final class LegacyBench {
 		client.player.abilities.allowFlying = true;
 		client.player.abilities.flying = true;
 		if (phase == 1) {
-			// the join packet puts the player at the world spawn a moment after it appears
-			if (++frame < 600 || client.player.y < 1) {
+			// the spawn point differs run to run, so the server moves the player to one fixed spot
+			frame++;
+			if (frame == 300) {
+				client.player.sendChatMessage("/tp @p 0 110 0");
+			}
+			if (frame < 1500 || client.player.y < 100) {
 				return;
 			}
 			x = client.player.x;
-			y = client.player.y + 12;
+			y = client.player.y;
 			z = client.player.z;
 			phase = 2;
 			frame = 0;
 		}
 		float yaw = frame * YAW_STEP;
-		client.player.updatePositionAndAngles(x, y, z, yaw, 8f);
+		client.player.updatePositionAndAngles(x, y, z, yaw, 25f);
 		client.player.velocityX = 0;
 		client.player.velocityY = 0;
 		client.player.velocityZ = 0;
