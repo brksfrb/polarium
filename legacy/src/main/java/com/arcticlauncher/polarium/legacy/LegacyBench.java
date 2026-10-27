@@ -61,6 +61,10 @@ public final class LegacyBench {
 		client.player.abilities.allowFlying = true;
 		client.player.abilities.flying = true;
 		if (phase == 1) {
+			// the join packet puts the player at the world spawn a moment after it appears
+			if (++frame < 600 || client.player.y < 1) {
+				return;
+			}
 			x = client.player.x;
 			y = client.player.y + 12;
 			z = client.player.z;
