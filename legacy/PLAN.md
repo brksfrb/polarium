@@ -1,4 +1,6 @@
-# Polarium for 1.8.9: optimisation plan (paper only, nothing below the first item is built yet)
+# Polarium for 1.8.9: optimisation plan
+
+Status: items 1 to 6 are written and build in CI (switches: terrain, regions, clouds, entities, openfaces); only item 1 has run in a game. Items 2 to 6 are untested.
 
 Rule for every item: the picture stays pixel-identical (or differs by float rounding far below one
 colour step), and each one has an off switch (`-Dpolarium.<name>=false`) so one jar gives before/after.
@@ -58,7 +60,7 @@ camera block position and the blocks of that section, so cache it keyed on (bloc
 chunk object, a counter bumped on every client block change). Any change or chunk replacement recomputes. The cost
 returns while blocks change every frame, as in vanilla.
 
-### 6. Faster walk body (maybe 0.3 ms of the remaining 0.65 to 0.85)
+### 6. Faster walk body (maybe 0.3 ms of the remaining 0.65 to 0.85; built as a stamp array: a neighbour already reached is now rejected without touching its section object)
 Per visited section: positions, boxes and visibility data are read through several objects. Keep them in flat
 arrays indexed by section index (positions and boxes refreshed when the storage re-centres, which already
 resets every section), walk on the arrays. Uncertain gain: memory misses are the cost, which only a profile shows.
