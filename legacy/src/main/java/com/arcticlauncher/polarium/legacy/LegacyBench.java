@@ -23,6 +23,9 @@ public final class LegacyBench {
 	private static final float YAW_STEP = 0.6f;
 	private static final int RENDER_DISTANCE = Integer.getInteger("polarium.bench.distance", 11);
 
+	private static final long SETTLE_NANOS = 30_000_000_000L;
+
+	private static long teleported;
 	private static int phase;
 	private static int frame;
 	private static long last;
@@ -65,8 +68,10 @@ public final class LegacyBench {
 			frame++;
 			if (frame == 300) {
 				client.player.sendChatMessage("/tp @p 0 110 0");
+				teleported = now;
 			}
-			if (frame < 1500 || client.player.y < 100) {
+			// the chunks around the new spot need a while to be generated, sent and built
+			if (frame < 300 || now - teleported < SETTLE_NANOS || client.player.y < 100) {
 				return;
 			}
 			x = client.player.x;
