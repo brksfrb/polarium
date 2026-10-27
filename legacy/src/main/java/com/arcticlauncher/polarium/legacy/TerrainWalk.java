@@ -126,6 +126,29 @@ public final class TerrainWalk {
 		}
 	}
 
+	/** The same test for the section box at a block corner (only with {@link #fast}). */
+	private boolean inFrustumAt(int bx, int by, int bz) {
+		double minX = bx - viewX;
+		double minY = by - viewY;
+		double minZ = bz - viewZ;
+		double maxX = bx + 16 - viewX;
+		double maxY = by + 16 - viewY;
+		double maxZ = bz + 16 - viewZ;
+		double[] p = planes;
+		for (int i = 0; i < 24; i += 4) {
+			double a = p[i];
+			double b = p[i + 1];
+			double c = p[i + 2];
+			double x = a > 0 ? maxX : minX;
+			double y = b > 0 ? maxY : minY;
+			double z = c > 0 ? maxZ : minZ;
+			if (!(a * x + b * y + c * z + p[i + 3] > 0.0)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public boolean inFrustum(Box box) {
 		if (!fast) {
 			return view.isBoxInFrustum(box);
@@ -214,11 +237,15 @@ public final class TerrainWalk {
 				if (cull && from >= 0 && !helper.isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
 					continue;
 				}
-				int slot = reachSlot(px + DX[d], py + DY[d], pz + DZ[d]);
+				int nx = px + DX[d];
+				int ny = py + DY[d];
+				int nz = pz + DZ[d];
+				int slot = reachSlot(nx, ny, nz);
 				if (slot >= 0 && stamps[slot] != frame) {
 					stamps[slot] = frame;
-					BuiltChunk next = chunks[slot];
-					if (inFrustum(next.field_11071)) {
+					// a section's box is its corner to corner + 16: the test needs no look at the section itself
+					if (fast ? inFrustumAt(nx, ny, nz) : view.isBoxInFrustum(chunks[slot].field_11071)) {
+						BuiltChunk next = chunks[slot];
 						queue[tail] = next;
 						cameFrom[tail] = d;
 						facing[tail] = mask | 1 << d;
