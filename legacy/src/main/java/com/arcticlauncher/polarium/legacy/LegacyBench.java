@@ -83,7 +83,22 @@ public final class LegacyBench {
 			frame = 0;
 		}
 		float yaw = frame * YAW_STEP;
+		boolean still = !SHOT.isEmpty() && phase == 2 && frame >= WARMUP_FRAMES - 60;
+		if (still) {
+			// a fixed view, with the previous-frame values equal so nothing is interpolated
+			yaw = 123f;
+		}
 		client.player.updatePositionAndAngles(x, y, z, yaw, 25f);
+		if (still) {
+			client.player.prevYaw = yaw;
+			client.player.prevPitch = 25f;
+			client.player.prevX = x;
+			client.player.prevY = y;
+			client.player.prevZ = z;
+			client.player.prevTickX = x;
+			client.player.prevTickY = y;
+			client.player.prevTickZ = z;
+		}
 		client.player.velocityX = 0;
 		client.player.velocityY = 0;
 		client.player.velocityZ = 0;
