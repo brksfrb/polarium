@@ -5,6 +5,7 @@ import com.arcticlauncher.polarium.legacy.mixin.CullingCameraViewAccess;
 import com.arcticlauncher.polarium.legacy.mixin.StorageAccess;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -14,6 +15,7 @@ import net.minecraft.client.render.BuiltChunkStorage;
 import net.minecraft.client.render.CameraView;
 import net.minecraft.client.render.CullingCameraView;
 import net.minecraft.client.world.BuiltChunk;
+import net.minecraft.client.world.ChunkAssemblyHelper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Direction;
@@ -51,6 +53,8 @@ public final class TerrainWalk {
 	private BuiltChunk[] queue = new BuiltChunk[0];
 	private int[] cameFrom = new int[0];
 	private int[] facing = new int[0];
+	/** What each visited section's visibility data was when the walk read it (a rebuild can swap it any time). */
+	private ChunkAssemblyHelper[] helpers = new ChunkAssemblyHelper[0];
 	private int seedCount;
 	private int direct;
 	private int head;
@@ -157,6 +161,7 @@ public final class TerrainWalk {
 	}
 
 	public void addVisible(BuiltChunk chunk) {
+		helpers[visibleCount] = null;
 		visible[visibleCount++] = chunk;
 		direct++;
 	}
@@ -173,6 +178,8 @@ public final class TerrainWalk {
 			int from = cameFrom[head];
 			int mask = facing[head];
 			head++;
+			ChunkAssemblyHelper helper = chunk.method_10170();
+			helpers[visibleCount] = helper;
 			visible[visibleCount++] = chunk;
 			BlockPos pos = chunk.getPos();
 			int px = pos.getX();
@@ -183,7 +190,7 @@ public final class TerrainWalk {
 				if (cull && (mask >> opposite & 1) != 0) {
 					continue;
 				}
-				if (cull && from >= 0 && !chunk.method_10170().isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
+				if (cull && from >= 0 && !helper.isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
 					continue;
 				}
 				BuiltChunk next = neighbour(px + DX[d], py + DY[d], pz + DZ[d]);
@@ -224,6 +231,13 @@ public final class TerrainWalk {
 	 */
 	public String verify(int referenceMark, BuiltChunkStorage storage, BlockPos cameraChunk, int renderDistance) {
 		List<BuiltChunk> expected = new ArrayList<>();
+		// the chunk builder thread may swap a section's visibility data between the two walks: use what this walk saw
+		IdentityHashMap<BuiltChunk, ChunkAssemblyHelper> seen = new IdentityHashMap<>();
+		for (int i = 0; i < visibleCount; i++) {
+			if (helpers[i] != null) {
+				seen.put(visible[i], helpers[i]);
+			}
+		}
 		Queue<Object[]> queue = new LinkedList<>();
 		for (int i = 0; i < direct; i++) {
 			expected.add(visible[i]);
@@ -243,7 +257,7 @@ public final class TerrainWalk {
 			for (Direction d : Direction.values()) {
 				BuiltChunk next = referenceNeighbour(storage, cameraChunk, renderDistance, chunk, d);
 				if ((!cull || !travelled.contains(d.getOpposite()))
-						&& (!cull || from == null || chunk.method_10170().isVisibleThrough(from.getOpposite(), d))
+						&& (!cull || from == null || helperOf(seen, chunk).isVisibleThrough(from.getOpposite(), d))
 						&& next != null
 						&& next.method_10156(referenceMark)
 						&& view.isBoxInFrustum(next.field_11071)) {
@@ -263,6 +277,11 @@ public final class TerrainWalk {
 			}
 		}
 		return null;
+	}
+
+	private static ChunkAssemblyHelper helperOf(IdentityHashMap<BuiltChunk, ChunkAssemblyHelper> seen, BuiltChunk chunk) {
+		ChunkAssemblyHelper helper = seen.get(chunk);
+		return helper != null ? helper : chunk.method_10170();
 	}
 
 	private BuiltChunk[] seeds = new BuiltChunk[0];
