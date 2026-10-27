@@ -95,6 +95,7 @@ public final class TerrainWalk {
 			cameFrom = new int[chunks.length];
 			facing = new int[chunks.length];
 			visible = new BuiltChunk[chunks.length];
+			helpers = new ChunkAssemblyHelper[chunks.length];
 		}
 		head = 0;
 		tail = 0;
