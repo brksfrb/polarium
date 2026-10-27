@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Minecraft 1.8.9 (Legacy Fabric, `legacy/`): world rendering is about 1.4 to
+  2.3 times faster at the same picture. Same scene each run (seed 20261026,
+  hovering at 0 110 0, turning, render distance 11, VBOs off, about 516 visible
+  sections and 108 entities, 6,000 frames, 12900KF + 3080 Ti): all switches off
+  5.6 and 6.4 ms a frame (179 and 157 FPS), all on 2.7 and 3.9 ms (365 and 257
+  FPS); the 99th percentile went from 12.6 and 15.0 ms to 7.7 and 10.8 ms. The
+  machine was not quiet, so read it as a range. Each switch off alone (all
+  others on): terrain 4.6 ms, regions 3.0, clouds 3.4, entities 3.2, open faces
+  2.8, against 2.7 with everything on. The same view with all off and all on
+  differs in 0.7 % of the pixels below the horizon, from moving entities and
+  water; clouds are the same shapes at the time they happen to be.
+  - `terrain`: the visible-section walk runs on flat arrays with no allocation
+    (setup 1.9 to 2.2 ms down to about 0.7). Off with `-Dpolarium.terrain=false`.
+  - `regions`: sections are compiled relative to a 128 block region and drawn
+    one `glCallLists` per region and layer instead of four GL calls per section.
+    Translucent keeps the game's order. Display lists only: with VBOs on it is
+    off. Off with `-Dpolarium.regions=false`.
+  - `clouds`: fancy clouds are one cached display list instead of about 3,000
+    vertices built twice a frame (0.35 ms to under 0.02). Off with
+    `-Dpolarium.clouds=false`.
+  - `entities`: entities are found from the entity list instead of by visiting
+    every visible section, drawn in the game's order. Off with
+    `-Dpolarium.entities=false`.
+  - `openfaces`: the flood fill of the camera's section is cached until the
+    camera block, the chunk or a block changes. A block change the game applies
+    without telling the renderer can leave it stale until the next update. Off
+    with `-Dpolarium.openfaces=false`.
+  - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
+    GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn
   as entities, falling blocks for one) is drawn on the GPU like held items,
   with the same flash and pulse. Off with `-Dpolarium.blocks=false`.

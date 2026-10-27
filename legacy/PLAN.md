@@ -1,6 +1,6 @@
 # Polarium for 1.8.9: optimisation plan
 
-Status: items 1 to 6 are written and build in CI (switches: terrain, regions, clouds, entities, openfaces); only item 1 has run in a game. Items 2 to 6 are untested.
+Status: items 1 to 6 are built and measured (see CHANGELOG). Nothing further worth doing without a profile of a real world.
 
 Rule for every item: the picture stays pixel-identical (or differs by float rounding far below one
 colour step), and each one has an off switch (`-Dpolarium.<name>=false`) so one jar gives before/after.
