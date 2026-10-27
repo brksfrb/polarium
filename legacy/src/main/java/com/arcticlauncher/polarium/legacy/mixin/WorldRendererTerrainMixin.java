@@ -1,10 +1,13 @@
 package com.arcticlauncher.polarium.legacy.mixin;
 
+import com.arcticlauncher.polarium.legacy.EntitySections;
 import com.arcticlauncher.polarium.legacy.Flags;
+import com.arcticlauncher.polarium.legacy.OpenFacesCache;
 import com.arcticlauncher.polarium.legacy.Phases;
 import com.arcticlauncher.polarium.legacy.TerrainWalk;
 import com.google.common.collect.Sets;
 import java.lang.reflect.Constructor;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import net.minecraft.client.MinecraftClient;
@@ -26,6 +29,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -98,6 +102,10 @@ abstract class WorldRendererTerrainMixin {
 	private boolean polarium$ownList;
 	@Unique
 	private int polarium$verified;
+	@Unique
+	private final OpenFacesCache polarium$openFaces = new OpenFacesCache();
+	@Unique
+	private final EntitySections polarium$entitySections = new EntitySections();
 
 	@Shadow
 	public abstract void reload();
@@ -223,6 +231,37 @@ abstract class WorldRendererTerrainMixin {
 		client.profiler.pop();
 	}
 
+	/** Any block, light or chunk-data change the game tells the renderer about: the camera section's open faces may differ. */
+	@Inject(method = "updateBlock", at = @At("HEAD"))
+	private void polarium$blocksChanged(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, CallbackInfo ci) {
+		polarium$openFaces.blocksChanged();
+	}
+
+	@Unique
+	private Set<Direction> polarium$openFaces(BlockPos blockPos) {
+		if (!Flags.OPEN_FACES) {
+			return getOpenChunkFaces(blockPos);
+		}
+		Object chunk = world.getChunk(blockPos);
+		Set<Direction> cached = polarium$openFaces.get(blockPos, chunk);
+		if (cached != null) {
+			return cached;
+		}
+		Set<Direction> fresh = getOpenChunkFaces(blockPos);
+		polarium$openFaces.put(blockPos, chunk, fresh);
+		return fresh;
+	}
+
+	/** The first pass over the visible sections (entities): only the ones that hold an entity, in the same order. */
+	@Redirect(method = "renderEntities", at = @At(value = "INVOKE", target = "Ljava/util/List;iterator()Ljava/util/Iterator;", ordinal = 0))
+	private Iterator<?> polarium$entitySections(List<?> visible) {
+		if (!Flags.ENTITIES || !polarium$ownList) {
+			return visible.iterator();
+		}
+		List<Object> sections = polarium$entitySections.sectionsWithEntities(world.getLoadedEntities(), polarium$walk, visibleChunks);
+		return sections == null ? visible.iterator() : sections.iterator();
+	}
+
 	@Unique
 	private BuiltChunk polarium$chunkAt(BlockPos pos) {
 		StorageAccess access = (StorageAccess) chunks;
@@ -254,7 +293,7 @@ abstract class WorldRendererTerrainMixin {
 			if (Phases.ON) {
 				Phases.begin(Phases.OPEN_FACES);
 			}
-			Set<Direction> open = getOpenChunkFaces(blockPos);
+			Set<Direction> open = polarium$openFaces(blockPos);
 			if (Phases.ON) {
 				Phases.end(Phases.OPEN_FACES);
 			}
@@ -275,17 +314,17 @@ abstract class WorldRendererTerrainMixin {
 					walk.setCull(false);
 				}
 
-				builtChunk.method_10156(frame);
-				walk.seed(builtChunk);
+				walk.seed(builtChunk, walk.slotAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
 			}
 		} else {
 			int j = blockPos.getY() > 0 ? 248 : 8;
 			for (int k = -renderDistance; k <= renderDistance; k++) {
 				for (int l = -renderDistance; l <= renderDistance; l++) {
-					BuiltChunk seed = polarium$chunkAt(new BlockPos((k << 4) + 8, j, (l << 4) + 8));
+					int x = (k << 4) + 8;
+					int z = (l << 4) + 8;
+					BuiltChunk seed = polarium$chunkAt(new BlockPos(x, j, z));
 					if (seed != null && walk.inFrustum(seed.field_11071)) {
-						seed.method_10156(frame);
-						walk.seed(seed);
+						walk.seed(seed, walk.slotAt(x, j, z));
 					}
 				}
 			}
@@ -315,10 +354,12 @@ abstract class WorldRendererTerrainMixin {
 		TerrainWalk walk = polarium$walk;
 		List<Object> list = visibleChunks;
 		list.clear();
+		polarium$entitySections.begin(polarium$records.length);
 		try {
 			for (int n = 0; n < walk.visibleCount; n++) {
 				BuiltChunk chunk = walk.visible[n];
 				int index = TerrainWalk.indexOf(chunk);
+				polarium$entitySections.record(index, n);
 				Object record = polarium$records[index];
 				if (record == null) {
 					record = polarium$recordConstructor.newInstance(this, chunk, null, 0);

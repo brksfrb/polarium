@@ -11,7 +11,11 @@
 		"WorldRendererTerrainMixin",
 		"BuiltChunkIndexAccess",
 		"CullingCameraViewAccess",
-		"StorageAccess"
+		"StorageAccess",
+		"AbstractManagerAccess",
+		"BuiltChunkRegionMixin",
+		"ListedRegionRenderMixin",
+		"WorldRendererCloudsMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

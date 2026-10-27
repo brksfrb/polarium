@@ -66,6 +66,8 @@ public final class TerrainWalk {
 	private int camZ;
 	private int reach;
 	private BuiltChunk[] chunks;
+	/** The frame each storage slot was last reached in (the game keeps this in every section; here it stays in one array). */
+	private int[] stamps = new int[0];
 	private int sizeX;
 	private int sizeY;
 	private int sizeZ;
@@ -80,6 +82,10 @@ public final class TerrainWalk {
 	/** Starts a walk; the storage's arrays are sized for the most sections it can hold. */
 	public void begin(BuiltChunkStorage storage, CameraView view, int frame, boolean cull, BlockPos cameraChunk, int renderDistance) {
 		StorageAccess access = (StorageAccess) storage;
+		if (this.chunks != storage.chunks || stamps.length != storage.chunks.length) {
+			stamps = new int[storage.chunks.length];
+			java.util.Arrays.fill(stamps, -1);
+		}
 		this.chunks = storage.chunks;
 		this.sizeX = access.polarium$sizeX();
 		this.sizeY = access.polarium$sizeY();
@@ -148,8 +154,9 @@ public final class TerrainWalk {
 		this.cull = cull;
 	}
 
-	/** A section the walk starts from (the game has already checked what it needs to). */
-	public void seed(BuiltChunk chunk) {
+	/** A section the walk starts from (the game has already checked what it needs to); slot is {@link #slotAt}. */
+	public void seed(BuiltChunk chunk, int slot) {
+		stamps[slot] = frame;
 		if (seeds.length < tail + 1) {
 			seeds = java.util.Arrays.copyOf(seeds, Math.max(16, seeds.length * 2));
 		}
@@ -166,8 +173,21 @@ public final class TerrainWalk {
 		direct++;
 	}
 
-	public boolean mark(BuiltChunk chunk) {
-		return chunk.method_10156(frame);
+	/** Where the game's storage keeps the section at a block position, or -1 when it has none there. */
+	public int slotAt(int x, int y, int z) {
+		int sy = y >> 4;
+		if (sy < 0 || sy >= sizeY) {
+			return -1;
+		}
+		int ix = (x >> 4) % sizeX;
+		if (ix < 0) {
+			ix += sizeX;
+		}
+		int iz = (z >> 4) % sizeZ;
+		if (iz < 0) {
+			iz += sizeZ;
+		}
+		return (iz * sizeY + sy) * sizeX + ix;
 	}
 
 	/** Visits every section reachable from the seeds. */
@@ -193,30 +213,37 @@ public final class TerrainWalk {
 				if (cull && from >= 0 && !helper.isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
 					continue;
 				}
-				BuiltChunk next = neighbour(px + DX[d], py + DY[d], pz + DZ[d]);
-				if (next != null && next.method_10156(frame) && inFrustum(next.field_11071)) {
-					queue[tail] = next;
-					cameFrom[tail] = d;
-					facing[tail] = mask | 1 << d;
-					tail++;
+				int slot = reachSlot(px + DX[d], py + DY[d], pz + DZ[d]);
+				if (slot >= 0 && stamps[slot] != frame) {
+					stamps[slot] = frame;
+					BuiltChunk next = chunks[slot];
+					if (inFrustum(next.field_11071)) {
+						queue[tail] = next;
+						cameFrom[tail] = d;
+						facing[tail] = mask | 1 << d;
+						tail++;
+					}
 				}
 			}
 		}
 	}
 
-	private BuiltChunk neighbour(int x, int y, int z) {
-		if (Math.abs(camX - x) > reach || y < 0 || y >= 256 || Math.abs(camZ - z) > reach) {
+	/** The section the storage keeps for this block position when it really is at that position, else null. */
+	public BuiltChunk sectionAt(int x, int y, int z) {
+		int slot = slotAt(x, y, z);
+		if (slot < 0 || slot >= chunks.length) {
 			return null;
 		}
-		int ix = (x >> 4) % sizeX;
-		if (ix < 0) {
-			ix += sizeX;
+		BuiltChunk chunk = chunks[slot];
+		BlockPos pos = chunk.getPos();
+		return pos.getX() == (x & ~15) && pos.getY() == (y & ~15) && pos.getZ() == (z & ~15) ? chunk : null;
+	}
+
+	private int reachSlot(int x, int y, int z) {
+		if (Math.abs(camX - x) > reach || y < 0 || y >= 256 || Math.abs(camZ - z) > reach) {
+			return -1;
 		}
-		int iz = (z >> 4) % sizeZ;
-		if (iz < 0) {
-			iz += sizeZ;
-		}
-		return chunks[(iz * sizeY + (y >> 4)) * sizeX + ix];
+		return slotAt(x, y, z);
 	}
 
 	/** For the pool of per-section records the game's own lists want. */
