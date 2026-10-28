@@ -234,23 +234,25 @@ public final class TerrainWalk {
 				if (cull && (mask >> opposite & 1) != 0) {
 					continue;
 				}
-				if (cull && from >= 0 && !helper.isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
-					continue;
-				}
 				int nx = px + DX[d];
 				int ny = py + DY[d];
 				int nz = pz + DZ[d];
 				int slot = reachSlot(nx, ny, nz);
-				if (slot >= 0 && stamps[slot] != frame) {
-					stamps[slot] = frame;
-					// a section's box is its corner to corner + 16: the test needs no look at the section itself
-					if (fast ? inFrustumAt(nx, ny, nz) : view.isBoxInFrustum(chunks[slot].field_11071)) {
-						BuiltChunk next = chunks[slot];
-						queue[tail] = next;
-						cameFrom[tail] = d;
-						facing[tail] = mask | 1 << d;
-						tail++;
-					}
+				// already reached: nothing below can change that, so the visibility lookup is not needed
+				if (slot < 0 || stamps[slot] == frame) {
+					continue;
+				}
+				if (cull && from >= 0 && !helper.isVisibleThrough(DIRS[OPPOSITE[from]], DIRS[d])) {
+					continue;
+				}
+				stamps[slot] = frame;
+				// a section's box is its corner to corner + 16: the test needs no look at the section itself
+				if (fast ? inFrustumAt(nx, ny, nz) : view.isBoxInFrustum(chunks[slot].field_11071)) {
+					BuiltChunk next = chunks[slot];
+					queue[tail] = next;
+					cameFrom[tail] = d;
+					facing[tail] = mask | 1 << d;
+					tail++;
 				}
 			}
 		}
