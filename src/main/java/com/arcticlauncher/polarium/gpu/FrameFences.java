@@ -57,7 +57,12 @@ final class FrameFences {
 		if (fences[slot] != null) {
 			fences[slot].close();
 		}
-		fences[slot] = RenderSystem.getDevice().createCommandEncoder().createFence();
+		try {
+			fences[slot] = RenderSystem.getDevice().createCommandEncoder().createFence();
+		} catch (IllegalStateException e) {
+			// A render pass is still open (the hand's, when its frame ends inside it): no fence this time; the wait is bounded anyway.
+			fences[slot] = null;
+		}
 	}
 }
 //#endif
