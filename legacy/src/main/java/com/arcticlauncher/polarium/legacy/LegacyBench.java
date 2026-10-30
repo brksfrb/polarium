@@ -20,6 +20,7 @@ public final class LegacyBench {
 	private static final long SEED = 20261026L;
 	private static final int WARMUP_FRAMES = Integer.getInteger("polarium.bench.warmup", 900);
 	private static final int MEASURED_FRAMES = Integer.getInteger("polarium.bench.frames", 3000);
+	private static final boolean HAND = Boolean.getBoolean("polarium.bench.hand");
 	private static final String SHOT = System.getProperty("polarium.bench.shot", "");
 	private static final float YAW_STEP = 0.6f;
 	private static final int RENDER_DISTANCE = Integer.getInteger("polarium.bench.distance", 11);
@@ -104,6 +105,13 @@ public final class LegacyBench {
 		client.player.velocityZ = 0;
 		frame++;
 		if (phase == 2) {
+			if (HAND && !SHOT.isEmpty() && frame == 1) {
+				client.player.inventory.setInvStack(client.player.inventory.selectedSlot, new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND_SWORD));
+			}
+			if (HAND && !SHOT.isEmpty() && frame >= WARMUP_FRAMES - 4 && frame < WARMUP_FRAMES) {
+				// consecutive frames of a frozen view: the hand must come out the same each time
+				net.minecraft.client.util.ScreenshotUtils.saveScreenshot(client.runDirectory, SHOT + "-" + (frame - (WARMUP_FRAMES - 4)) + ".png", client.width, client.height, client.getFramebuffer());
+			}
 			if (frame >= WARMUP_FRAMES) {
 				phase = 3;
 				if (!SHOT.isEmpty()) {
