@@ -276,6 +276,9 @@ abstract class WorldRendererTerrainMixin {
 		if (!Flags.REGIONS || !polarium$ownList || !(chunkRenderManager instanceof ListedChunkRenderManager)) {
 			return;
 		}
+		if (Phases.ON) {
+			Phases.begin(Phases.TERRAIN_DRAW);
+		}
 		TerrainWalk walk = polarium$walk;
 		int total = walk.visibleCount;
 		DiffuseLighting.disable();
@@ -304,6 +307,9 @@ abstract class WorldRendererTerrainMixin {
 			GlStateManager.clearColor();
 		}
 		client.gameRenderer.disableLightmap();
+		if (Phases.ON) {
+			Phases.end(Phases.TERRAIN_DRAW);
+		}
 		cir.setReturnValue(found);
 	}
 
