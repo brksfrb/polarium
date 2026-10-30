@@ -65,6 +65,7 @@ abstract class WorldRendererCloudsMixin {
 		} catch (Throwable t) {
 			polarium$cloudsFailed = true;
 			System.out.println("[Polarium] cached clouds off, the game's clouds draw instead: " + t);
+			t.printStackTrace();
 			GlStateManager.colorMask(true, true, true, true);
 		} finally {
 			GlStateManager.popMatrix();
