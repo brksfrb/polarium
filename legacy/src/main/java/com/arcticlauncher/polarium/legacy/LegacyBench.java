@@ -62,7 +62,7 @@ public final class LegacyBench {
 		client.options.viewDistance = RENDER_DISTANCE;
 		client.options.vsync = false;
 		client.options.maxFramerate = 260;
-		client.options.hudHidden = true;
+		client.options.hudHidden = !HAND;
 		client.options.pauseOnLostFocus = false;
 		client.player.abilities.allowFlying = true;
 		client.player.abilities.flying = true;
