@@ -78,6 +78,44 @@ public final class TerrainWalk {
 	private double viewX;
 	private double viewY;
 	private double viewZ;
+	/** The planes the frustum test reads: the real ones, or the widened ones while a reusable walk is built. */
+	private double[] active = planes;
+	private final double[] widened = new double[24];
+	/** The unit normals of the six planes now and in the walk before (to see how fast the camera turns). */
+	private final double[] normals = new double[18];
+	private final double[] prevNormals = new double[18];
+	private boolean normalsKnown;
+	private double turn;
+	private int sectionY;
+
+	/** How far the reusable walk reaches past the real frustum, in blocks. */
+	private static final double WIDEN = 32.0;
+	/** The camera may move this far (blocks) before the reusable walk is dropped. */
+	private static final double MAX_SHIFT = 8.0;
+	/** Walks the reusable walk serves before a new one is made, so rebuilt sections show up. */
+	private static final int MAX_AGE = 8;
+	/** Only build a wide walk while the camera turns slower than this per walk (distance between unit normals). */
+	private static final double CALM_TURN = 0.03;
+
+	private boolean cacheValid;
+	private BuiltChunk[] cacheList = new BuiltChunk[0];
+	private int cacheCount;
+	private int cacheKeep;
+	private int cacheAge;
+	private Object cacheKey;
+	private BuiltChunk[] cacheChunks;
+	private boolean cacheCull;
+	private int cacheCamX;
+	private int cacheCamZ;
+	private int cacheSectionY;
+	private double cacheViewX;
+	private double cacheViewY;
+	private double cacheViewZ;
+	private final double[] cacheNormals = new double[18];
+	private double cacheReach;
+	/** Sections the game's walk had that the reused one lacked, and the other way round (verify runs). */
+	public int missing;
+	public int extra;
 
 	/** Starts a walk; the storage's arrays are sized for the most sections it can hold. */
 	public void begin(BuiltChunkStorage storage, CameraView view, int frame, boolean cull, BlockPos cameraChunk, int renderDistance) {
@@ -105,6 +143,7 @@ public final class TerrainWalk {
 		this.cull = cull;
 		this.camX = cameraChunk.getX();
 		this.camZ = cameraChunk.getZ();
+		this.sectionY = cameraChunk.getY();
 		this.reach = renderDistance * 16;
 		this.view = view;
 		this.fast = false;
@@ -122,8 +161,120 @@ public final class TerrainWalk {
 				viewY = cv.polarium$y();
 				viewZ = cv.polarium$z();
 				this.fast = true;
+				this.active = planes;
+				measureTurn();
 			}
 		}
+	}
+
+	/** Unit normals of the planes, the widened copy of the planes, and how far the normals moved since the last walk. */
+	private void measureTurn() {
+		System.arraycopy(normals, 0, prevNormals, 0, 18);
+		for (int i = 0; i < 6; i++) {
+			double a = planes[i * 4];
+			double b = planes[i * 4 + 1];
+			double c = planes[i * 4 + 2];
+			double len = Math.sqrt(a * a + b * b + c * c);
+			normals[i * 3] = a / len;
+			normals[i * 3 + 1] = b / len;
+			normals[i * 3 + 2] = c / len;
+			widened[i * 4] = a;
+			widened[i * 4 + 1] = b;
+			widened[i * 4 + 2] = c;
+			widened[i * 4 + 3] = planes[i * 4 + 3] + WIDEN * len;
+		}
+		turn = normalsKnown ? distance(normals, prevNormals) : Double.MAX_VALUE;
+		normalsKnown = true;
+	}
+
+	/** The largest distance between matching unit normals of two plane sets. */
+	private static double distance(double[] x, double[] y) {
+		double worst = 0;
+		for (int i = 0; i < 6; i++) {
+			double dx = x[i * 3] - y[i * 3];
+			double dy = x[i * 3 + 1] - y[i * 3 + 1];
+			double dz = x[i * 3 + 2] - y[i * 3 + 2];
+			worst = Math.max(worst, Math.sqrt(dx * dx + dy * dy + dz * dz));
+		}
+		return worst;
+	}
+
+	/**
+	 * The walk for this frame. A walk made with the frustum widened by {@link #WIDEN} blocks holds every section
+	 * the real frustum will want for the next few frames of a small turn; each frame keeps the ones the real frustum
+	 * still sees. Sections only reachable through a path outside the real frustum stay in (the game drops them), and
+	 * they are hidden behind what the game keeps, so the picture does not change. key: the section the walk starts
+	 * from (null: no reuse for this frame). Returns true when the old walk was reused.
+	 */
+	public boolean runCached(Object key) {
+		seedCount = tail;
+		if (!Flags.WALK_CACHE || !fast || key == null || tail == 0) {
+			cacheValid = false;
+			run();
+			return false;
+		}
+		if (cacheValid && usable(key)) {
+			cacheAge++;
+			filterCache();
+			return true;
+		}
+		if (turn > CALM_TURN) {
+			cacheValid = false;
+			run();
+			return false;
+		}
+		active = widened;
+		run();
+		active = planes;
+		if (cacheList.length < visible.length) {
+			cacheList = new BuiltChunk[visible.length];
+		}
+		System.arraycopy(visible, 0, cacheList, 0, visibleCount);
+		cacheCount = visibleCount;
+		cacheKeep = direct + seedCount;
+		cacheAge = 0;
+		cacheKey = key;
+		cacheChunks = chunks;
+		cacheCull = cull;
+		cacheCamX = camX;
+		cacheCamZ = camZ;
+		cacheSectionY = sectionY;
+		cacheViewX = viewX;
+		cacheViewY = viewY;
+		cacheViewZ = viewZ;
+		System.arraycopy(normals, 0, cacheNormals, 0, 18);
+		// the farthest a section of the walk can be from the eye: the storage's reach on both axes, and the world's height
+		double horizontal = (reach + 24) * 1.4143;
+		cacheReach = Math.sqrt(horizontal * horizontal + 256.0 * 256.0);
+		cacheValid = true;
+		filterCache();
+		return false;
+	}
+
+	private boolean usable(Object key) {
+		if (cacheKey != key || cacheChunks != chunks || cacheCull != cull || cacheAge >= MAX_AGE
+				|| cacheCamX != camX || cacheCamZ != camZ || cacheSectionY != sectionY) {
+			return false;
+		}
+		double dx = viewX - cacheViewX;
+		double dy = viewY - cacheViewY;
+		double dz = viewZ - cacheViewZ;
+		double shift = Math.sqrt(dx * dx + dy * dy + dz * dz);
+		return shift <= MAX_SHIFT && cacheReach * distance(normals, cacheNormals) + shift <= WIDEN;
+	}
+
+	/** The old walk's sections the real frustum still sees, in the old walk's order; the walk's own start sections stay. */
+	private void filterCache() {
+		int n = 0;
+		for (int i = 0; i < cacheCount; i++) {
+			BuiltChunk section = cacheList[i];
+			if (i < cacheKeep || inFrustum(section.field_11071)) {
+				visible[n] = section;
+				helpers[n] = null;
+				n++;
+			}
+		}
+		visibleCount = n;
 	}
 
 	public boolean inFrustum(Box box) {
@@ -136,7 +287,7 @@ public final class TerrainWalk {
 		double maxX = box.maxX - viewX;
 		double maxY = box.maxY - viewY;
 		double maxZ = box.maxZ - viewZ;
-		double[] p = planes;
+		double[] p = active;
 		for (int i = 0; i < 24; i += 4) {
 			double a = p[i];
 			double b = p[i + 1];
@@ -301,6 +452,22 @@ public final class TerrainWalk {
 					queue.add(new Object[] {next, d, set});
 				}
 			}
+		}
+		if (Flags.WALK_CACHE && fast) {
+			// the reused walk keeps everything the game's walk keeps, plus some sections only reachable outside the view
+			IdentityHashMap<BuiltChunk, Boolean> mine = new IdentityHashMap<>();
+			for (int i = 0; i < visibleCount; i++) {
+				mine.put(visible[i], Boolean.TRUE);
+			}
+			int lacking = 0;
+			for (BuiltChunk c : expected) {
+				if (!mine.containsKey(c)) {
+					lacking++;
+				}
+			}
+			missing += lacking;
+			extra += Math.max(0, visibleCount - expected.size() + lacking);
+			return lacking == 0 ? null : lacking + " of the game's " + expected.size() + " sections are missing from this walk's " + visibleCount;
 		}
 		if (expected.size() != visibleCount) {
 			return "game's walk saw " + expected.size() + " sections, this one " + visibleCount;
