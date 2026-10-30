@@ -349,7 +349,6 @@ abstract class WorldRendererTerrainMixin {
 			BlockPos blockPos2, BuiltChunk builtChunk) {
 		TerrainWalk walk = polarium$walk;
 		walk.begin(chunks, cameraView, frame, client.chunkCullingEnabled, blockPos2, renderDistance);
-		Object reuseKey = null;
 		if (builtChunk != null) {
 			boolean enclosed = false;
 			if (Phases.ON) {
@@ -377,7 +376,6 @@ abstract class WorldRendererTerrainMixin {
 				}
 
 				walk.seed(builtChunk, walk.slotAt(blockPos.getX(), blockPos.getY(), blockPos.getZ()));
-				reuseKey = spectator ? null : builtChunk;
 			}
 		} else {
 			int j = blockPos.getY() > 0 ? 248 : 8;
@@ -396,7 +394,7 @@ abstract class WorldRendererTerrainMixin {
 		if (Phases.ON) {
 			Phases.begin(Phases.WALK);
 		}
-		walk.runCached(reuseKey);
+		walk.run();
 		if (Phases.ON) {
 			Phases.end(Phases.WALK);
 		}
@@ -405,7 +403,7 @@ abstract class WorldRendererTerrainMixin {
 			if (diff != null) {
 				System.out.println("[Polarium] TERRAIN WALK MISMATCH: " + diff);
 			} else if (++polarium$verified % 500 == 0) {
-				System.out.println("[Polarium] terrain walk verified " + polarium$verified + " times, " + walk.extra + " extra and " + walk.missing + " missing sections so far");
+				System.out.println("[Polarium] terrain walk verified " + polarium$verified + " times");
 			}
 		}
 		polarium$fillList();

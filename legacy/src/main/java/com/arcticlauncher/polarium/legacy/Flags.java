@@ -17,9 +17,6 @@ public final class Flags {
 	/** The camera section's open faces kept until a block changes. */
 	public static final boolean OPEN_FACES = on("openfaces");
 
-	/** One wide terrain walk reused for a few frames of small camera turns, filtered by the real frustum each frame. */
-	public static final boolean WALK_CACHE = on("walkcache");
-
 	/** Check every terrain walk against the game's own (slow; for tests). */
 	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
 
@@ -31,6 +28,6 @@ public final class Flags {
 	}
 
 	public static String describe() {
-		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " walkcache=" + WALK_CACHE;
+		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES;
 	}
 }
