@@ -3,6 +3,7 @@ package com.arcticlauncher.polarium.legacy.mixin;
 import com.arcticlauncher.polarium.legacy.CloudCache;
 import com.arcticlauncher.polarium.legacy.Flags;
 import com.mojang.blaze3d.platform.GlStateManager;
+import java.nio.FloatBuffer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.texture.TextureManager;
@@ -10,6 +11,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,6 +43,11 @@ abstract class WorldRendererCloudsMixin {
 
 	@Unique
 	private final CloudCache polarium$clouds = new CloudCache();
+	/** GL's current colour and normal (GL_CURRENT_COLOR, GL_CURRENT_NORMAL), kept around the cloud list. */
+	@Unique
+	private static final FloatBuffer polarium$colour = BufferUtils.createFloatBuffer(16);
+	@Unique
+	private static final FloatBuffer polarium$normal = BufferUtils.createFloatBuffer(16);
 
 	@Inject(method = "renderFancyClouds", at = @At("HEAD"), cancellable = true)
 	private void polarium$fancyClouds(float tickDelta, int anaglyphFilter, CallbackInfo ci) {
@@ -77,6 +84,12 @@ abstract class WorldRendererCloudsMixin {
 		float ab = (float) (e - MathHelper.floor(e));
 		float ac = (float) (i - MathHelper.floor(i));
 		int list = polarium$clouds.list(MathHelper.floor(e), MathHelper.floor(i), m, n, o, j > -5.0F, j <= 5.0F);
+		// a display list sets the current colour and normal to its last vertex's (the game's array draw leaves them alone):
+		// hold them and put them back, or the hand and whatever is drawn next picks up a cloud's shade
+		polarium$colour.clear();
+		polarium$normal.clear();
+		GL11.glGetFloat(GL11.GL_CURRENT_COLOR, polarium$colour);
+		GL11.glGetFloat(GL11.GL_CURRENT_NORMAL, polarium$normal);
 		GlStateManager.scale(12.0F, 1.0F, 12.0F);
 		GlStateManager.translate(-ab, j, -ac);
 
@@ -101,6 +114,9 @@ abstract class WorldRendererCloudsMixin {
 			GL11.glCallList(list);
 		}
 
+		GL11.glColor4f(polarium$colour.get(0), polarium$colour.get(1), polarium$colour.get(2), polarium$colour.get(3));
+		GL11.glNormal3f(polarium$normal.get(0), polarium$normal.get(1), polarium$normal.get(2));
+		GlStateManager.clearColor();
 		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 		GlStateManager.disableBlend();
 		GlStateManager.enableCull();
