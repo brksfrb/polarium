@@ -45,9 +45,9 @@ abstract class WorldRendererCloudsMixin {
 	private final CloudCache polarium$clouds = new CloudCache();
 	/** GL's current colour and normal (GL_CURRENT_COLOR, GL_CURRENT_NORMAL), kept around the cloud list. */
 	@Unique
-	private final FloatBuffer polarium$colour = BufferUtils.createFloatBuffer(16);
+	private FloatBuffer polarium$colour;
 	@Unique
-	private final FloatBuffer polarium$normal = BufferUtils.createFloatBuffer(16);
+	private FloatBuffer polarium$normal;
 	/** Set when the cached clouds threw: the game's own clouds draw from then on. */
 	@Unique
 	private boolean polarium$cloudsFailed;
@@ -105,6 +105,10 @@ abstract class WorldRendererCloudsMixin {
 		int list = polarium$clouds.list(MathHelper.floor(e), MathHelper.floor(i), m, n, o, j > -5.0F, j <= 5.0F);
 		// a display list sets the current colour and normal to its last vertex's (the game's array draw leaves them alone):
 		// hold them and put them back, or the hand and whatever is drawn next picks up a cloud's shade
+		if (polarium$colour == null) {
+			polarium$colour = BufferUtils.createFloatBuffer(16);
+			polarium$normal = BufferUtils.createFloatBuffer(16);
+		}
 		polarium$colour.clear();
 		polarium$normal.clear();
 		GL11.glGetFloat(GL11.GL_CURRENT_COLOR, polarium$colour);
