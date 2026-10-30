@@ -20,6 +20,8 @@ public final class LegacyBench {
 	private static final long SEED = 20261026L;
 	private static final int WARMUP_FRAMES = Integer.getInteger("polarium.bench.warmup", 900);
 	private static final int MEASURED_FRAMES = Integer.getInteger("polarium.bench.frames", 3000);
+	/** Holds the view still through the measured frames too: what a frame costs when nothing moves. */
+	private static final boolean FREEZE = Boolean.getBoolean("polarium.bench.freeze");
 	private static final boolean HAND = Boolean.getBoolean("polarium.bench.hand");
 	private static final String SHOT = System.getProperty("polarium.bench.shot", "");
 	private static final float YAW_STEP = 0.6f;
@@ -84,7 +86,7 @@ public final class LegacyBench {
 			frame = 0;
 		}
 		float yaw = frame * YAW_STEP;
-		boolean still = !SHOT.isEmpty() && phase == 2 && frame >= WARMUP_FRAMES - 60;
+		boolean still = (!SHOT.isEmpty() && phase == 2 && frame >= WARMUP_FRAMES - 60) || (FREEZE && phase >= 2);
 		if (still) {
 			// a fixed view, with the previous-frame values equal so nothing is interpolated
 			yaw = 123f;
