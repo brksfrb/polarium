@@ -45,16 +45,34 @@ abstract class WorldRendererCloudsMixin {
 	private final CloudCache polarium$clouds = new CloudCache();
 	/** GL's current colour and normal (GL_CURRENT_COLOR, GL_CURRENT_NORMAL), kept around the cloud list. */
 	@Unique
-	private static final FloatBuffer polarium$colour = BufferUtils.createFloatBuffer(16);
+	private final FloatBuffer polarium$colour = BufferUtils.createFloatBuffer(16);
 	@Unique
-	private static final FloatBuffer polarium$normal = BufferUtils.createFloatBuffer(16);
+	private final FloatBuffer polarium$normal = BufferUtils.createFloatBuffer(16);
+	/** Set when the cached clouds threw: the game's own clouds draw from then on. */
+	@Unique
+	private boolean polarium$cloudsFailed;
 
 	@Inject(method = "renderFancyClouds", at = @At("HEAD"), cancellable = true)
 	private void polarium$fancyClouds(float tickDelta, int anaglyphFilter, CallbackInfo ci) {
-		if (!Flags.CLOUDS) {
+		if (!Flags.CLOUDS || polarium$cloudsFailed) {
 			return;
 		}
-		ci.cancel();
+		// the matrix is the caller's again whichever way this goes
+		GlStateManager.pushMatrix();
+		try {
+			polarium$drawClouds(tickDelta, anaglyphFilter);
+			ci.cancel();
+		} catch (Throwable t) {
+			polarium$cloudsFailed = true;
+			System.out.println("[Polarium] cached clouds off, the game's clouds draw instead: " + t);
+			GlStateManager.colorMask(true, true, true, true);
+		} finally {
+			GlStateManager.popMatrix();
+		}
+	}
+
+	@Unique
+	private void polarium$drawClouds(float tickDelta, int anaglyphFilter) {
 		GlStateManager.disableCull();
 		float f = (float) (client.getCameraEntity().prevTickY + (client.getCameraEntity().y - client.getCameraEntity().prevTickY) * tickDelta);
 		double d = ticks + tickDelta;
