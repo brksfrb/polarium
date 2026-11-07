@@ -23,6 +23,9 @@ public final class Flags {
 	/** Opaque terrain split by face direction at build; the directions facing away from the camera are not drawn. */
 	public static final boolean FACES = on("faces");
 
+	/** Cutout-mipped quads whose sprite is fully opaque are built into the solid layer (no alpha test). */
+	public static final boolean OPAQUE_CUTOUT = on("opaquecutout");
+
 	/** Check every terrain walk against the game's own (slow; for tests). */
 	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
 
@@ -34,6 +37,6 @@ public final class Flags {
 	}
 
 	public static String describe() {
-		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " pipeline=" + PIPELINE + " faces=" + FACES;
+		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " pipeline=" + PIPELINE + " faces=" + FACES + " opaquecutout=" + OPAQUE_CUTOUT;
 	}
 }

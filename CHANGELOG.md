@@ -57,6 +57,18 @@
     tree canopies where faces meeting at an edge tie in depth and the draw
     order inside a section decides (the same kind of difference region
     batching has between sections). Off with `-Dpolarium.faces=false`.
+  - `opaquecutout`: quads of cutout-mipped blocks (grass, fancy leaves,
+    panes, hoppers) whose sprite is fully opaque (alpha 255 in every texel,
+    frame and mip level, checked per sprite when the block atlas is stitched;
+    animated, rotated or off-mip-grid sprites never count) and whose vertex
+    colours are opaque are built into the solid layer. They pass the 0.5 alpha
+    test everywhere, so they draw the same pixels, but without the alpha test
+    a software rasterizer can reject their hidden pixels before shading. Grass
+    tops, sides and bottoms move; the side overlays and leaves stay. A quad
+    never moves past an earlier quad of its block that stays in the same plane
+    (a grass side keeps drawing before its overlay). Vanilla atlas: 194 of 596
+    sprites qualify. Fixed view: no terrain pixel differs. Off with
+    `-Dpolarium.opaquecutout=false`.
   - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
     GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn

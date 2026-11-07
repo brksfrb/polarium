@@ -26,7 +26,12 @@
 		"BuiltChunkSplitMixin",
 		"ListedSectionAccess",
 		"ListedSectionDeleteMixin",
-		"VboFacesMixin"
+		"VboFacesMixin",
+		"SpriteRotationMixin",
+		"AtlasOpaqueMixin",
+		"BuiltChunkCutoutMixin",
+		"BufferBuilderAccess",
+		"AssemblyHelperAccess"
 	],
 	"injectors": {
 		"defaultRequire": 1
