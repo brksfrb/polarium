@@ -29,6 +29,17 @@
     camera block, the chunk or a block changes. A block change the game applies
     without telling the renderer can leave it stale until the next update. Off
     with `-Dpolarium.openfaces=false`.
+  - `pipeline` (software OpenGL only: Mesa llvmpipe or softpipe in
+    `GL_RENDERER`; nothing changes on a GPU driver): a `glFlush` about every
+    20,000 terrain vertices (`-Dpolarium.pipeline.vertices=N`), counted per
+    section list so a region call is cut where the budget runs out, and at the
+    end of the sky, cloud, entity and terrain passes. A software driver only
+    starts rasterizing what has been flushed, so without it the game's thread
+    and the rasterizer threads take turns. Moving bench on llvmpipe (4 raster
+    threads, 1280x720, 3 runs each, other jobs on the machine): 37.0 to 48.1
+    FPS. Budgets of 10,000 to 50,000 vertices measured the same, 100,000 a
+    little lower. A flush never changes the picture. Off with
+    `-Dpolarium.pipeline=false`.
   - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
     GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn
