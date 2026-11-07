@@ -31,7 +31,9 @@
 		"AtlasOpaqueMixin",
 		"BuiltChunkCutoutMixin",
 		"BufferBuilderAccess",
-		"AssemblyHelperAccess"
+		"AssemblyHelperAccess",
+		"VignetteMixin",
+		"ResourceReloadMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

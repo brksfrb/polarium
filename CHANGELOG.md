@@ -69,6 +69,28 @@
     (a grass side keeps drawing before its overlay). Vanilla atlas: 194 of 596
     sprites qualify. Fixed view: no terrain pixel differs. Off with
     `-Dpolarium.opaquecutout=false`.
+  - `vignette` (fancy graphics): the vignette multiplies the screen by one
+    minus its texture times its colour. When that colour is under a quarter
+    of an 8-bit step (in daylight it fades towards zero and stays there) it
+    rounds to no change and is not drawn; otherwise it is drawn as a ring of
+    bands around the texture's black middle (found in whatever resource pack
+    is loaded, with two texels of slack for filtering), where it changes
+    nothing exactly. The colours on screen are the same; the framebuffer's
+    alpha channel, which nothing shows, keeps its value where the vignette is
+    not drawn. Off with `-Dpolarium.vignette=false`.
+  - Left out, because they change the picture: drawing straight to the window
+    when no post shader is on (on llvmpipe the window's BGRX buffer rounds
+    differently from the framebuffer's RGBA texture: about 0.3 % of pixels
+    were one colour step off; Xvfb's window also has no alpha channel, which
+    primed TNT's flash blends with); drawing the sky after the opaque terrain
+    (the only per-pixel test for "nothing drawn here" is depth at the far
+    plane, which terrain fragments within a few hundredths of a block of the
+    far plane also reach: those show fog colour now and would show sunset or
+    stars; and clouds below the camera are blended over the sky before the
+    terrain, so the sky cannot move behind them); drawing clouds after the
+    opaque terrain (where terrain is behind a cloud, including the stretch the
+    game's mismatched cloud and terrain depth ranges put behind it, the cloud
+    is blended over the sky today and would be blended over the terrain).
   - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
     GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn

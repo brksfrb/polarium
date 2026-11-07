@@ -26,6 +26,9 @@ public final class Flags {
 	/** Cutout-mipped quads whose sprite is fully opaque are built into the solid layer (no alpha test). */
 	public static final boolean OPAQUE_CUTOUT = on("opaquecutout");
 
+	/** The vignette skips the screen it cannot change: all of it when it rounds to nothing, else its black middle. */
+	public static final boolean VIGNETTE = on("vignette");
+
 	/** Check every terrain walk against the game's own (slow; for tests). */
 	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
 
@@ -37,6 +40,6 @@ public final class Flags {
 	}
 
 	public static String describe() {
-		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " pipeline=" + PIPELINE + " faces=" + FACES + " opaquecutout=" + OPAQUE_CUTOUT;
+		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " pipeline=" + PIPELINE + " faces=" + FACES + " opaquecutout=" + OPAQUE_CUTOUT + " vignette=" + VIGNETTE;
 	}
 }
