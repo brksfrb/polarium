@@ -21,7 +21,12 @@
 		"VertexBufferAccess",
 		"PipelineWorldRendererMixin",
 		"PipelineChunkManagersMixin",
-		"PipelineVboManagerMixin"
+		"PipelineVboManagerMixin",
+		"BufferBuilderSplitMixin",
+		"BuiltChunkSplitMixin",
+		"ListedSectionAccess",
+		"ListedSectionDeleteMixin",
+		"VboFacesMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

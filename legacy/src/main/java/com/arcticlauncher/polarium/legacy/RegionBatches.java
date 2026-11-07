@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.List;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.world.ChunkAssemblyHelper;
 import net.minecraft.client.render.world.ChunkRenderHelperImpl;
@@ -39,6 +40,8 @@ public final class RegionBatches {
 	private int[] fill = new int[0];
 	private IntBuffer sorted = allocate(0);
 
+	private final FaceCulling culling = new FaceCulling();
+
 	private final long[] tableKey = new long[TABLE_SIZE];
 	private final int[] tableValue = new int[TABLE_SIZE];
 	private final int[] tableStamp = new int[TABLE_SIZE];
@@ -50,12 +53,14 @@ public final class RegionBatches {
 		if (count == 0) {
 			return;
 		}
-		ensure(count);
+		ensure(count * FaceBuckets.BUCKETS);
+		boolean faces = beginFaces(layer);
+		int entries = 0;
 		for (int i = 0; i < count; i++) {
 			BuiltChunk section = sections.get(i);
-			put(i, listOf(section, layer), verticesOf(section, layer), section.getPos());
+			entries = add(entries, section, listOf(section, layer), layer, faces, viewX, viewY, viewZ);
 		}
-		draw(count, layer == RenderLayer.TRANSLUCENT, viewX, viewY, viewZ);
+		draw(entries, layer == RenderLayer.TRANSLUCENT, viewX, viewY, viewZ);
 	}
 
 	/**
@@ -64,21 +69,66 @@ public final class RegionBatches {
 	 * Returns how many sections had something in this layer (what the game's own pass returns).
 	 */
 	public int renderVisible(BuiltChunk[] visible, int total, RenderLayer layer, double viewX, double viewY, double viewZ) {
-		ensure(total);
+		ensure(total * FaceBuckets.BUCKETS);
 		boolean ordered = layer == RenderLayer.TRANSLUCENT;
+		boolean faces = beginFaces(layer);
 		int found = 0;
+		int entries = 0;
 		for (int k = 0; k < total; k++) {
 			BuiltChunk section = visible[ordered ? total - 1 - k : k];
 			ChunkRenderHelperImpl impl = (ChunkRenderHelperImpl) section;
 			ChunkAssemblyHelper helper = impl.method_10170();
 			if (!helper.method_10149(layer)) {
-				put(found++, impl.method_10153(layer, helper), verticesOf(section, layer), section.getPos());
+				found++;
+				entries = add(entries, section, impl.method_10153(layer, helper), layer, faces, viewX, viewY, viewZ);
 			}
 		}
-		if (found > 0) {
-			draw(found, ordered, viewX, viewY, viewZ);
+		if (entries > 0) {
+			draw(entries, ordered, viewX, viewY, viewZ);
 		}
 		return found;
+	}
+
+	/** Face culling for an opaque layer: reads the matrices it is about to be drawn with. */
+	private boolean beginFaces(RenderLayer layer) {
+		if (!Flags.FACES || layer.ordinal() >= FaceBuckets.LAYERS) {
+			return false;
+		}
+		MinecraftClient client = MinecraftClient.getInstance();
+		culling.begin(client.width, client.height);
+		return culling.usable();
+	}
+
+	/**
+	 * A section's entries: its layer list, or, for a layer split by face direction, the lists of the buckets
+	 * that can face the camera. Returns the next free entry.
+	 */
+	private int add(int at, BuiltChunk section, int list, RenderLayer layer, boolean faces, double viewX, double viewY, double viewZ) {
+		SectionData data = (SectionData) section;
+		int ordinal = layer.ordinal();
+		BlockPos pos = section.getPos();
+		if (list < 0 || ordinal >= FaceBuckets.LAYERS || !data.polarium$split()[ordinal] || data.polarium$bucketLists() == 0) {
+			put(at, list, data.polarium$vertices()[ordinal], pos);
+			return at + 1;
+		}
+		int countsAt = ordinal * FaceBuckets.BUCKETS;
+		int[] counts = data.polarium$bucketVertices();
+		int hidden = 0;
+		if (faces) {
+			int rx = Regions.origin(pos.getX());
+			int rz = Regions.origin(pos.getZ());
+			hidden = culling.hidden(data.polarium$bucketPlanes(), ordinal * FaceBuckets.AXIS_BUCKETS * 2, counts, countsAt,
+					(float) (rx - viewX), (float) (0 - viewY), (float) (rz - viewZ),
+					pos.getX() - viewX, pos.getY() - viewY, pos.getZ() - viewZ);
+		}
+		int first = data.polarium$bucketLists() + countsAt;
+		for (int b = 0; b < FaceBuckets.BUCKETS; b++) {
+			int vertexCount = counts[countsAt + b];
+			if (vertexCount != 0 && (hidden & 1 << b) == 0) {
+				put(at++, first + b, vertexCount, pos);
+			}
+		}
+		return at;
 	}
 
 	private void put(int i, int list, int vertexCount, BlockPos pos) {
@@ -218,10 +268,6 @@ public final class RegionBatches {
 
 	/** How many display lists the last layout holds. */
 	private int drawn;
-
-	private static int verticesOf(BuiltChunk section, RenderLayer layer) {
-		return ((SectionData) section).polarium$vertices()[layer.ordinal()];
-	}
 
 	private static int listOf(BuiltChunk section, RenderLayer layer) {
 		ChunkRenderHelperImpl impl = (ChunkRenderHelperImpl) section;

@@ -40,6 +40,23 @@
     FPS. Budgets of 10,000 to 50,000 vertices measured the same, 100,000 a
     little lower. A flush never changes the picture. Off with
     `-Dpolarium.pipeline=false`.
+  - `faces`: the solid, cutout-mipped and cutout layers of each section are
+    split by which way their faces point when the section is built (six axis
+    directions plus everything else, the quads keeping their order inside each
+    bucket), and the buckets whose faces all point away from the camera are not
+    drawn: GL would have culled those triangles after doing their vertex work.
+    The test uses the projection and model-view GL holds when the layer is
+    drawn and only skips a bucket when every plane in it is behind the camera
+    by a margin that grows with distance (an almost edge-on face far away is
+    left to GL). Region batching is kept (the visible buckets go in the same
+    `glCallLists`); with VBOs on, a section's visible buckets are ranges of its
+    buffer, one `glMultiDrawArrays`. Translucent is not split. Fixed view on
+    llvmpipe (2 runs each): 38.3 to 40.0 FPS alone, 53.5 to 57.1 FPS with
+    `pipeline`; moving bench with `pipeline`, 3 runs each: about 47 to 51 FPS
+    (noisy). Picture: 30 to 55 of 921,600 pixels differ, single pixels in far
+    tree canopies where faces meeting at an edge tie in depth and the draw
+    order inside a section decides (the same kind of difference region
+    batching has between sections). Off with `-Dpolarium.faces=false`.
   - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
     GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn
