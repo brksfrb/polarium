@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Minecraft 1.21.11 (`-Pminecraft_version=1.21.11`, built with Java 21 against
+  Mojang's names, Fabric Loader 0.19.5; still no Fabric API): the CPU side as on
+  26.2. Other players' ticks and entity render states on the helper threads,
+  kept states made in full once a tick and brought up to each frame, kept name
+  tag texts, scoreboard sidebar lines and GUI text, the item model lock, the
+  primed TNT collision skip, and maps in item frames not building the item
+  under them. Not on 1.21.11: the GPU path (26.2's rendering API isn't there),
+  the shared item frame models, the name tag distance attributes (1.21.11 has
+  none) and `-Dpolarium.checkTags`. The game is obfuscated there, so the
+  compatibility checks and the reflection by name map Minecraft's names
+  (intermediary) at run time. No speed claims for it yet.
 - Minecraft 1.8.9 (Legacy Fabric, `legacy/`): world rendering is about 1.4 to
   2.3 times faster at the same picture. Same scene each run (seed 20261026,
   hovering at 0 110 0, turning, render distance 11, VBOs off, about 516 visible

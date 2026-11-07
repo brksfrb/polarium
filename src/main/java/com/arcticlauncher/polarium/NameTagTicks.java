@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium;
 
 import com.arcticlauncher.polarium.mixin.EntityRendererNameTagsAccess;
@@ -49,7 +49,12 @@ public final class NameTagTicks {
 		EntityRendererNameTagsAccess access = (EntityRendererNameTagsAccess) renderer;
 		KeptStates.Holder holder = (KeptStates.Holder) entity;
 		Kept kept = holder.polarium$tagTick() instanceof Kept k ? k : new Kept();
+		//#if MC >= 26.1
 		boolean hudHidden = mc.gui.hud.isHidden();
+		//#else
+		// What shouldShowName reads (Minecraft.renderNames()).
+		boolean hudHidden = mc.options.hideGui;
+		//#endif
 		Entity camera = mc.getCameraEntity();
 		Entity picked = dispatcher.crosshairPickEntity;
 		if (kept.tick != entity.tickCount || kept.hudHidden != hudHidden || kept.camera != camera || kept.picked != picked) {
@@ -60,7 +65,12 @@ public final class NameTagTicks {
 			// At no distance: the only distance rule in it is the sneaking one, checked below every frame.
 			kept.shown = access.polarium$shouldShowName(entity, 0.0);
 			kept.text = access.polarium$getNameTag(entity);
+			//#if MC >= 26.1
 			kept.score = entity.belowNameDisplay();
+			//#else
+			// Every player and mannequin the AvatarRenderer draws is a ClientAvatarEntity.
+			kept.score = ((net.minecraft.client.entity.ClientAvatarEntity) entity).belowNameDisplay();
+			//#endif
 			holder.polarium$tagTick(kept);
 		}
 		double distanceSq = dispatcher.distanceToSqr(entity);
@@ -74,11 +84,14 @@ public final class NameTagTicks {
 			state.nameTag = null;
 		}
 		state.scoreText = distanceSq < belowNameDistance * belowNameDistance ? kept.score : null;
+		//#if MC >= 26.2
 		if (CHECK) {
 			check(renderer, entity, state, partialTicks);
 		}
+		//#endif
 	}
 
+	//#if MC >= 26.2
 	private static final boolean CHECK = Boolean.getBoolean("polarium.checkTags");
 	private static final java.util.concurrent.atomic.AtomicLong CHECKED = new java.util.concurrent.atomic.AtomicLong();
 	private static final java.util.concurrent.ConcurrentHashMap<String, Long> DIFFERENT = new java.util.concurrent.ConcurrentHashMap<>();
@@ -113,5 +126,9 @@ public final class NameTagTicks {
 			DIFFERENT.clear();
 		}
 	}
+	//#else
+	// 1.21.11 makes name tags inside EntityRenderer.extractRenderState and AvatarRenderer.extractRenderState,
+	// with no method of their own to compare against: -Dpolarium.checkTags isn't available there.
+	//#endif
 }
 //#endif

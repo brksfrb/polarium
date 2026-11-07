@@ -68,8 +68,13 @@ public final class TerrainBench implements ClientModInitializer {
 		mc.options.pauseOnLostFocus = false;
 		mc.options.renderDistance().set(RENDER_DISTANCE);
 		String name = "Polarium Bench Terrain " + System.currentTimeMillis();
+		//#if MC >= 26.1
 		LevelSettings settings = new LevelSettings(name, GameType.CREATIVE,
 				new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false), true, WorldDataConfiguration.DEFAULT);
+		//#else
+		LevelSettings settings = new LevelSettings(name, GameType.CREATIVE, false, Difficulty.PEACEFUL, true,
+				new net.minecraft.world.level.gamerules.GameRules(WorldDataConfiguration.DEFAULT.enabledFeatures()), WorldDataConfiguration.DEFAULT);
+		//#endif
 		mc.createWorldOpenFlows().createFreshLevel(name, settings, new WorldOptions(SEED, true, false),
 				registries -> registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.NORMAL).value().createWorldDimensions(),
 				screen(mc));

@@ -1,3 +1,4 @@
+//#if MC >= 26.1
 package com.arcticlauncher.polarium.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -14,3 +15,4 @@ public interface EntityRendererNameAccess {
 	@Invoker("submitNameDisplay")
 	void polarium$submitNameDisplay(EntityRenderState state, PoseStack poseStack, SubmitNodeCollector collector, CameraRenderState camera);
 }
+//#endif

@@ -13,7 +13,7 @@ abstract class FontManagerMixin {
 	@Inject(method = {"apply", "updateOptions"}, at = @At("HEAD"))
 	private void polarium$fontsChanged(CallbackInfo ci) {
 		NameTagCache.clear();
-		//#if MC >= 26.2
+		//#if MC >= 26.2 || MC < 26.1
 		com.arcticlauncher.polarium.SidebarCache.clear();
 		com.arcticlauncher.polarium.PreparedTexts.clear();
 		//#endif

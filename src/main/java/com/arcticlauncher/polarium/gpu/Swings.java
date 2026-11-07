@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium.gpu;
 
 import net.minecraft.client.renderer.entity.state.ArmedEntityRenderState;
@@ -23,6 +23,8 @@ public final class Swings {
 		//#endif
 	}
 
+	// Before 26.1 the attacking arm is only on HumanoidRenderState; only the GPU path (26.2 and later) reads this.
+	//#if MC >= 26.1
 	/** The arm swinging. */
 	public static HumanoidArm arm(ArmedEntityRenderState state) {
 		//#if MC >= 26.3
@@ -31,6 +33,7 @@ public final class Swings {
 		return state.attackArm;
 		//#endif
 	}
+	//#endif
 
 	/** The swing's animation (NONE when not swinging). */
 	public static SwingAnimationType type(ArmedEntityRenderState state) {

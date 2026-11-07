@@ -25,6 +25,8 @@ LOOM = os.path.expanduser("~/.gradle/caches/fabric-loom/minecraftMaven/net/minec
 # Methods a mixin target inherits from classes it doesn't declare; javap -p on
 # the target alone can't see them, so only these are looked up the hierarchy.
 MAX_SUPERS = 6
+# Classes and interfaces looked through for inherited members at most.
+MAX_TYPES = 32
 
 
 def jar_for(version):
@@ -46,14 +48,35 @@ class Jar:
         return self.members_cache[cls]
 
     def hierarchy(self, cls):
-        """The class and its superclasses (as far as the jar knows them)."""
+        """The class, its superclasses and the interfaces they implement (as far as the jar knows them).
+
+        Interfaces count for default methods (Level.getEntityCollisions is EntityGetter's)."""
         chain = [cls]
+        supers = [cls]
         for _ in range(MAX_SUPERS):
-            head = self.members(chain[-1]).split("{", 1)[0]
+            head = self.members(supers[-1]).split("{", 1)[0]
             m = re.search(r"\bextends ([\w.$]+)", head)
             if not m or not m.group(1).startswith(("net.minecraft", "com.mojang")):
                 break
+            supers.append(m.group(1))
             chain.append(m.group(1))
+        queue = list(supers)
+        while queue and len(chain) < MAX_TYPES:
+            head = self.members(queue.pop(0)).split("{", 1)[0]
+            # "interface X extends A, B" or "class X ... implements A, B"
+            m = re.search(r"\b(?:implements|interface [\w.$<>, ?]+? extends) ([\w.$<>, ?]+)", head)
+            if not m:
+                continue
+            names = m.group(1)
+            while "<" in names:
+                stripped = re.sub(r"<[^<>]*>", "", names)
+                if stripped == names:
+                    break
+                names = stripped
+            for name in re.findall(r"(?:^|,)\s*((?:net\.minecraft|com\.mojang)[\w.$]*)", names):
+                if name not in chain:
+                    chain.append(name)
+                    queue.append(name)
         return chain
 
     def has_member(self, cls, name):

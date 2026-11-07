@@ -62,8 +62,21 @@ Chat, Xaero's Minimap, Jade, AppleSkin, Mod Menu):
 | 26.3 | 0.16.9+ | everything but GPU name tags (name tags are drawn the game's way) |
 | 26.2 | 0.16.9+ | everything |
 | 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states); the GPU path is being ported |
+| 1.21.11 | 0.16.9+ (built against 0.19.5) | the CPU side as on 26.2: parallel ticks and render states, kept states made in full once a tick, kept name tags, scoreboard sidebar and GUI text; the GPU path is not ported (below) |
 
 No Fabric API needed.
+
+On 1.21.11 the GPU path (players, armor, capes, held items, TNT and name tags
+drawn instanced) stays off: it is built on 26.2's rendering API (staged vertex
+uploads, bind groups, submit nodes and feature frames, prepared render types),
+none of which 1.21.11 has. Everything is drawn by the game there, as without
+Polarium (so `-Dpolarium.crowd`, `-Dpolarium.blocks` and `-Dpolarium.skeleton`
+change nothing there). Also not on 1.21.11: the shared item frame models (1.21.11 looks the
+frame's model up while drawing, with no model state to share; maps in frames
+still skip building the item under them), the kept name tag distance
+attributes (1.21.11 has none: its tags use the fixed 64 and 10 blocks), and
+`-Dpolarium.checkTags` (1.21.11 makes tags inside the renderer's extraction,
+with no method of their own to compare against).
 
 ## Compatibility
 
@@ -101,12 +114,15 @@ time goes.
 ```
 ./gradlew build                                  # Minecraft 26.2
 ./gradlew build -Pminecraft_version=26.1.2
+./gradlew build -Pminecraft_version=1.21.11      # with Java 21
 ```
 
 The jar lands in `build/libs/`. Code that differs between Minecraft versions
 sits in `//#if MC >= 26.2 … //#else … //#endif` blocks, resolved at build time.
 `python mixcheck.py 26.2 26.1.2` checks every mixin target against those
-versions without starting the game.
+versions without starting the game. 1.21.11 is obfuscated: it is built with
+Mojang's names (Loom's remapping flavor) and runs with intermediary ones, so
+the few places that look Minecraft up by name map it at run time.
 
 ## License
 

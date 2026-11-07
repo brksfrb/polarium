@@ -204,7 +204,7 @@ public final class ParallelExtract {
 							if (timed) {
 								long took = System.nanoTime() - b;
 								tMade += took;
-								//#if MC >= 26.2
+								//#if MC >= 26.2 || MC < 26.1
 								if (!LightStates.broughtUp()) {
 									FULL_NANOS.add(took);
 									FULL_COUNT.increment();

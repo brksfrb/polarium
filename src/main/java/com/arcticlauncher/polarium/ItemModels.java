@@ -1,4 +1,4 @@
-//#if MC >= 26.1
+//#if MC >= 1.21.11
 package com.arcticlauncher.polarium;
 
 import java.lang.reflect.Field;
@@ -8,7 +8,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.CompositeModel;
+//#if MC >= 26.1
 import net.minecraft.client.renderer.item.CuboidItemModelWrapper;
+//#else
+import net.minecraft.client.renderer.item.BlockModelWrapper;
+//#endif
 import net.minecraft.client.renderer.item.EmptyModel;
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.renderer.item.MissingItemModel;
@@ -38,6 +42,16 @@ public final class ItemModels {
 	private static final Map<ItemModel, Boolean> FIXED = new ConcurrentHashMap<>();
 	private static final EquipmentSlot[] HELD = {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND, EquipmentSlot.HEAD};
 	private static final int DEPTH = 8;
+	//#if MC >= 26.1
+	private static final String COMPOSITE_MODELS = "models";
+	private static final String SELECT_PROPERTY = "property";
+	private static final String SELECT_MODELS = "models";
+	//#else
+	// Obfuscated: the names the game runs with.
+	private static final String COMPOSITE_MODELS = Intermediary.field("net.minecraft.class_10435", "field_55328", "Ljava/util/List;");
+	private static final String SELECT_PROPERTY = Intermediary.field("net.minecraft.class_10451", "field_55362", "Lnet/minecraft/class_10494;");
+	private static final String SELECT_MODELS = Intermediary.field("net.minecraft.class_10451", "field_55363", "Lnet/minecraft/class_10451$class_10722;");
+	//#endif
 
 	private ItemModels() {}
 
@@ -85,21 +99,27 @@ public final class ItemModels {
 		if (depth > DEPTH) {
 			return false;
 		}
-		if (model instanceof CuboidItemModelWrapper || model instanceof SpecialModelWrapper<?> || model instanceof EmptyModel
+		//#if MC >= 26.1
+		if (model instanceof CuboidItemModelWrapper || model instanceof SpecialModelWrapper<?>
+		//#else
+		// 1.21.11's name for the plain (cuboid) model wrapper.
+		if (model instanceof BlockModelWrapper || model instanceof SpecialModelWrapper<?>
+		//#endif
+				|| model instanceof EmptyModel
 				|| model instanceof MissingItemModel) {
 			return true;
 		}
 		try {
 			if (model instanceof CompositeModel) {
-				return all(field(CompositeModel.class, "models").get(model), depth);
+				return all(field(CompositeModel.class, COMPOSITE_MODELS).get(model), depth);
 			}
 			if (model instanceof SelectItemModel<?>) {
-				Object property = field(SelectItemModel.class, "property").get(model);
+				Object property = field(SelectItemModel.class, SELECT_PROPERTY).get(model);
 				if (property instanceof net.minecraft.client.renderer.item.properties.select.LocalTime) {
 					return false;
 				}
 				// The models it chooses between, wherever the selector keeps them.
-				Object selector = field(SelectItemModel.class, "models").get(model);
+				Object selector = field(SelectItemModel.class, SELECT_MODELS).get(model);
 				boolean any = false;
 				for (Class<?> c = selector.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
 					for (Field f : c.getDeclaredFields()) {

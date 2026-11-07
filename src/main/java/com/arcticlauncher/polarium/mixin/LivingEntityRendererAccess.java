@@ -21,12 +21,14 @@ public interface LivingEntityRendererAccess {
 	@Accessor("layers")
 	List<RenderLayer<?, ?>> polarium$layers();
 
-	//#if MC >= 26.2
+	//#if MC >= 26.2 || MC < 26.1
 	@Invoker("solveBodyRot")
 	static float polarium$solveBodyRot(net.minecraft.world.entity.LivingEntity entity, float headRot, float partialTicks) {
 		throw new AssertionError();
 	}
+	//#endif
 
+	//#if MC >= 26.2
 	@Invoker("extractNameTags")
 	void polarium$extractLivingNameTags(net.minecraft.world.entity.LivingEntity entity, LivingEntityRenderState state, float partialTicks);
 	//#endif

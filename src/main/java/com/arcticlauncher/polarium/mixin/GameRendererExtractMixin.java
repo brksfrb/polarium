@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium.mixin;
 
 import com.arcticlauncher.polarium.ParallelExtract;
@@ -12,6 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /** The level's entity states made on the helpers during the frame's extraction are in before the frame is drawn. */
 @Mixin(GameRenderer.class)
 abstract class GameRendererExtractMixin {
+	// 1.21.11 has no separate extract step (its entity states are made in LevelRenderer, see
+	// LevelRendererExtractMixin): only the frame's start and end are hooked there.
+	//#if MC >= 26.2
 	@Inject(method = "extract", at = @At("HEAD"))
 	private void polarium$extractStarts(DeltaTracker deltaTracker, boolean advanceGameTime, CallbackInfo ci) {
 		com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.EXTRACT);
@@ -26,6 +29,7 @@ abstract class GameRendererExtractMixin {
 		}
 		com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.EXTRACT);
 	}
+	//#endif
 
 	// 26.3's render() takes nothing (the frame's timing was extracted already).
 	@Inject(method = "render", at = @At("HEAD"))
