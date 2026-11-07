@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium.mixin;
 
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -10,8 +10,10 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 /** The renderer's name tag extraction with the distances given. */
 @Mixin(EntityRenderer.class)
 public interface EntityRendererNameTagsAccess {
+	//#if MC >= 26.2
 	@Invoker("extractNameTags")
 	void polarium$extractNameTags(Entity entity, EntityRenderState state, float partialTicks, double nameTagDistance, double belowNameDistance);
+	//#endif
 
 	@Invoker("shouldShowName")
 	boolean polarium$shouldShowName(Entity entity, double distanceToCameraSq);

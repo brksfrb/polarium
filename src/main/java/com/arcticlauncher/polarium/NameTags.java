@@ -1,16 +1,20 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium;
 
 import java.util.Map;
 import java.util.Objects;
+//#if MC >= 26.1
 import java.util.Optional;
+//#endif
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.PlayerTeam;
+//#if MC >= 26.1
 import net.minecraft.world.scores.TeamColor;
+//#endif
 
 /**
  * Each entity's name tag text, kept while what it's made of stays the same.
@@ -25,12 +29,26 @@ import net.minecraft.world.scores.TeamColor;
  */
 public final class NameTags {
 	private static final Map<Class<?>, Boolean> PLAIN = new ConcurrentHashMap<>();
+	//#if MC >= 26.1
+	private static final String GET_DISPLAY_NAME = "getDisplayName";
+	private static final String GET_NAME = "getName";
+	//#else
+	// Obfuscated: the names the game runs with (Nameable's).
+	private static final String GET_DISPLAY_NAME = Intermediary.method("net.minecraft.class_1275", "method_5476", "()Lnet/minecraft/class_2561;");
+	private static final String GET_NAME = Intermediary.method("net.minecraft.class_1275", "method_5477", "()Lnet/minecraft/class_2561;");
+	//#endif
 
 	private NameTags() {}
 
 	/** What the text was made from, and the text. */
+	//#if MC >= 26.1
 	public record Kept(PlayerTeam team, Component prefix, Component suffix, Optional<TeamColor> color,
 			Component customName, String profileName, Component text) {}
+	//#else
+	// Before 26.1 a team's color is a ChatFormatting.
+	public record Kept(PlayerTeam team, Component prefix, Component suffix, net.minecraft.ChatFormatting color,
+			Component customName, String profileName, Component text) {}
+	//#endif
 
 	/** Holder of an entity's kept text (added to Entity by a mixin). */
 	public interface Holder {
@@ -47,7 +65,11 @@ public final class NameTags {
 		PlayerTeam team = entity.getTeam();
 		Component prefix = team != null ? team.getPlayerPrefix() : null;
 		Component suffix = team != null ? team.getPlayerSuffix() : null;
+		//#if MC >= 26.1
 		Optional<TeamColor> color = team != null ? team.getColor() : null;
+		//#else
+		net.minecraft.ChatFormatting color = team != null ? team.getColor() : null;
+		//#endif
 		Component customName = entity.getCustomName();
 		String profileName = entity instanceof Player player ? player.getGameProfile().name() : null;
 		Holder holder = (Holder) entity;
@@ -69,8 +91,8 @@ public final class NameTags {
 
 	private static boolean checkPlainNames(Class<?> type) {
 		try {
-			Class<?> display = type.getMethod("getDisplayName").getDeclaringClass();
-			Class<?> name = type.getMethod("getName").getDeclaringClass();
+			Class<?> display = type.getMethod(GET_DISPLAY_NAME).getDeclaringClass();
+			Class<?> name = type.getMethod(GET_NAME).getDeclaringClass();
 			return (display == Entity.class || display == Player.class) && (name == Entity.class || name == Player.class);
 		} catch (NoSuchMethodException e) {
 			return false;

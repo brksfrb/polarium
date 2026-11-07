@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium;
 
 import com.arcticlauncher.polarium.mixin.AvatarRendererLightAccess;
@@ -58,16 +58,31 @@ public final class LightStates {
 			// Not Enough Animations (1.12): notes the state's entity and held items in it, and the state on the player.
 			"notenoughanimations");
 	/** The renderer classes whose extraction a light frame skips. */
+	//#if MC >= 26.1
 	private static final String[] RENDERERS = {"net.minecraft.client.renderer.entity.player.AvatarRenderer",
 			"net.minecraft.client.renderer.entity.HumanoidMobRenderer", "net.minecraft.client.renderer.entity.LivingEntityRenderer",
 			"net.minecraft.client.renderer.entity.EntityRenderer", "net.minecraft.client.renderer.entity.state.ArmedEntityRenderState"};
+	//#else
+	// Obfuscated: the same classes by the names the game runs with.
+	private static final String[] RENDERERS = {Intermediary.cls("net.minecraft.class_1007"), Intermediary.cls("net.minecraft.class_909"),
+			Intermediary.cls("net.minecraft.class_922"), Intermediary.cls("net.minecraft.class_897"), Intermediary.cls("net.minecraft.class_10426")};
+	//#endif
 	/**
 	 * The renderers' methods a light frame skips (it calls the rest of the
 	 * per-frame ones itself: name tags, light, body turn, flight, cape).
 	 * Another mod's hook into one of these may do per-frame work.
 	 */
+	//#if MC >= 26.1
 	private static final Set<String> SKIPPED = Set.of("extractRenderState", "extractHumanoidRenderState", "extractArmedEntityRenderState",
 			"getArmPose", "getAttackArm");
+	//#else
+	// Obfuscated: other mods' hooks name these by Mojang's names (in development) or, through their refmaps
+	// (see MixinsOn.hooks), by intermediary ones; each override of extractRenderState has its own.
+	private static final Set<String> SKIPPED = Set.of("extractRenderState", "extractHumanoidRenderState", "extractArmedEntityRenderState",
+			"getArmPose", "getAttackArm",
+			"method_62354", "method_62355", "method_62366", "method_62604", "method_62461", "method_65577", "method_65564", "method_64258",
+			"method_4210", "method_62462");
+	//#endif
 
 	private static volatile Boolean on;
 	private static List<BiConsumer<Object, Object>> hooks = List.of();
@@ -130,6 +145,13 @@ public final class LightStates {
 		int ours = 0;
 		for (String name : RENDERERS) {
 			Set<IMixinInfo> mixins = MixinsOn.of(name);
+			//#if MC < 26.1
+			if (mixins == null) {
+				// Can't tell (an unknown class name, or Mixin's internals changed): as with no hooks of Polarium's found.
+				LOG.info("Polarium: other players' render states made in full every frame (can't tell which mods change how they're made)");
+				return false;
+			}
+			//#endif
 			for (IMixinInfo mixin : mixins) {
 				String mod = MixinsOn.mod(mixin);
 				if (handled.contains(mod)) {
@@ -314,8 +336,13 @@ public final class LightStates {
 		// As on a new state: the game only sets where the tag goes when it shows one.
 		state.nameTagAttachment = null;
 		long t1 = timed ? System.nanoTime() : 0;
+		//#if MC >= 26.1
 		AttributeValues.Holder2 distances = (AttributeValues.Holder2) entity;
 		NameTagTicks.extract(renderer, entity, state, partialTicks, distances.polarium$nameDistance(), distances.polarium$belowNameDistance());
+		//#else
+		// No name tag distance attributes yet: the game's fixed 64 blocks (4096 squared) and 10 (100 squared).
+		NameTagTicks.extract(renderer, entity, state, partialTicks, 64.0, 10.0);
+		//#endif
 		long t2 = timed ? System.nanoTime() : 0;
 		boolean appearsGlowing = Minecraft.getInstance().shouldEntityAppearGlowing(entity);
 		state.outlineColor = appearsGlowing ? ARGB.opaque(entity.getTeamColor()) : 0;

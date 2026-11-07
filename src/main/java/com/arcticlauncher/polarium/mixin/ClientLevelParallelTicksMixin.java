@@ -55,7 +55,12 @@ abstract class ClientLevelParallelTicksMixin {
 	 * tick, it saw its own mark and gave every visible player the light tick
 	 * (no walk animation, no body turn: legs still or racing, heads spinning).
 	 */
+	//#if MC >= 26.1
 	@WrapOperation(method = "lambda$tickEntities$0",
+	//#else
+	// Obfuscated: the lambda in tickEntities has only its intermediary name.
+	@WrapOperation(method = "method_32124",
+	//#endif
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/ClientLevel;guardEntityTick(Ljava/util/function/Consumer;Lnet/minecraft/world/entity/Entity;)V"))
 	private void polarium$setAside(ClientLevel level, java.util.function.Consumer<Entity> tick, Entity entity, Operation<Void> guarded) {
 		if (!ParallelTicks.collect(entity)) {

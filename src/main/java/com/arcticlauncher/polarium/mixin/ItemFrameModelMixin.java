@@ -1,8 +1,10 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium.mixin;
 
+//#if MC >= 26.2
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.BlockModelResolver;
+//#endif
 import net.minecraft.client.renderer.entity.ItemFrameRenderer;
 import net.minecraft.client.renderer.entity.state.ItemFrameRenderState;
 import net.minecraft.client.renderer.item.ItemModelResolver;
@@ -27,6 +29,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(ItemFrameRenderer.class)
 abstract class ItemFrameModelMixin {
+	// 1.21.11 looks the frame's model up while drawing (BlockRenderDispatcher.getBlockModel, one map
+	// lookup) and has no BlockModelResolver or BlockModelRenderState: only the map's item is skipped there.
+	//#if MC >= 26.2
 	@Shadow
 	@Final
 	private BlockModelResolver blockModelResolver;
@@ -41,6 +46,7 @@ abstract class ItemFrameModelMixin {
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/block/BlockModelResolver;updateForItemFrame(Lnet/minecraft/client/renderer/block/BlockModelRenderState;ZZ)V"))
 	private void polarium$skipLookup(BlockModelResolver resolver, BlockModelRenderState state, boolean glowing, boolean map) {
 	}
+	//#endif
 
 	/**
 	 * A frame showing a map draws the map, never the item; the game still builds the item's model
@@ -58,6 +64,7 @@ abstract class ItemFrameModelMixin {
 		resolver.updateForNonLiving(output, item, context, entity);
 	}
 
+	//#if MC >= 26.2
 	@Redirect(require = 0, method = "submit(Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
 			at = @At(value = "FIELD", opcode = org.objectweb.asm.Opcodes.GETFIELD,
 					target = "Lnet/minecraft/client/renderer/entity/state/ItemFrameRenderState;frameModel:Lnet/minecraft/client/renderer/block/BlockModelRenderState;"))
@@ -79,5 +86,6 @@ abstract class ItemFrameModelMixin {
 		}
 		return model;
 	}
+	//#endif
 }
 //#endif

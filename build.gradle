@@ -93,7 +93,8 @@ def preprocessSource = { String text, String name ->
 /**
  * Classes that moved between versions, old name → new: written once here instead of a //#if
  * around every import. 26.3 moved the GPU layer from com.mojang.blaze3d to com.mojang.renderpearl
- * (one API over its OpenGL and Vulkan backends).
+ * (one API over its OpenGL and Vulkan backends). The sources use 26.1's names; 1.21.11 has a few
+ * of those classes in the packages they were in before 26.1.
  */
 def renames = atLeast('26.3') ? [
 		'com.mojang.blaze3d.buffers.GpuBufferSlice'      : 'com.mojang.renderpearl.api.buffers.GpuBufferSlice',
@@ -120,6 +121,14 @@ def renames = atLeast('26.3') ? [
 		'com.mojang.blaze3d.PrimitiveTopology'           : 'com.mojang.renderpearl.api.pipeline.PrimitiveTopology',
 		// Type-annotated names (`pkg.@Nullable Type`) name the package alone.
 		'com.mojang.blaze3d.textures.@'                  : 'com.mojang.renderpearl.api.textures.@',
+] : !atLeast('26.1') ? [
+		// 1.21.11 keeps these in the packages they had before 26.1 reorganised them.
+		'net.minecraft.client.resources.model.cuboid.ItemTransform'         : 'net.minecraft.client.renderer.block.model.ItemTransform',
+		'net.minecraft.client.resources.model.geometry.BakedQuad'           : 'net.minecraft.client.renderer.block.model.BakedQuad',
+		'net.minecraft.client.renderer.state.level.CameraRenderState'       : 'net.minecraft.client.renderer.state.CameraRenderState',
+		'net.minecraft.client.renderer.state.level.LevelRenderState'        : 'net.minecraft.client.renderer.state.LevelRenderState',
+		'net.minecraft.client.renderer.state.level.QuadParticleRenderState' : 'net.minecraft.client.renderer.state.QuadParticleRenderState',
+		'net.minecraft.client.renderer.state.gui.GuiTextRenderState'        : 'net.minecraft.client.gui.render.state.GuiTextRenderState',
 ] : [:]
 
 /** Whole names only: GpuBuffer must not catch GpuBufferSlice. Mixin targets name them as paths (a/b/C) too. */

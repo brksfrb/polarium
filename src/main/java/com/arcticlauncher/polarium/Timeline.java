@@ -48,7 +48,7 @@ public final class Timeline {
 			for (Step step : Step.values()) {
 				line.append(String.format(java.util.Locale.ROOT, " %s %.2f;", step.name().toLowerCase(java.util.Locale.ROOT), TOTAL[step.ordinal()] / 1e6 / frames));
 			}
-			//#if MC >= 26.2
+			//#if MC >= 26.2 || MC < 26.1
 			line.append(" states: ").append(LightStates.counts());
 			line.append(String.format(java.util.Locale.ROOT, " visible: short %d, long %d, untrusted %d", ParallelExtract.VISIBLE_CALLS[0],
 					ParallelExtract.VISIBLE_CALLS[1], ParallelExtract.VISIBLE_CALLS[2]));

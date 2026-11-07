@@ -13,11 +13,17 @@ import net.minecraft.world.level.Level;
  * the answer is the same empty list.
  */
 public final class CollidableEntities {
+	//#if MC >= 26.1
+	private static final String CAN_BE_COLLIDED_WITH = "canBeCollidedWith";
+	//#else
+	// Obfuscated: the name the game runs with.
+	private static final String CAN_BE_COLLIDED_WITH = Intermediary.method("net.minecraft.class_1297", "method_30948", "(Lnet/minecraft/class_1297;)Z");
+	//#endif
 	private static final ClassValue<Boolean> OVERRIDES = new ClassValue<>() {
 		@Override
 		protected Boolean computeValue(Class<?> type) {
 			try {
-				return type.getMethod("canBeCollidedWith", Entity.class).getDeclaringClass() != Entity.class;
+				return type.getMethod(CAN_BE_COLLIDED_WITH, Entity.class).getDeclaringClass() != Entity.class;
 			} catch (ReflectiveOperationException | LinkageError e) {
 				// Can't tell: assume it may.
 				return true;

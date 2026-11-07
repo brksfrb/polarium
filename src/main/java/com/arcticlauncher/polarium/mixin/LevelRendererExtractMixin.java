@@ -1,4 +1,4 @@
-//#if MC >= 26.1 && MC < 26.2
+//#if MC < 26.2
 package com.arcticlauncher.polarium.mixin;
 
 import com.arcticlauncher.polarium.ParallelExtract;
@@ -29,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The game's {@code extractVisibleEntities} (26.1: still in the level
+ * The game's {@code extractVisibleEntities} (1.21.11 and 26.1: still in the level
  * renderer), with the per-entity work spread over threads as on 26.2 (see
  * LevelExtractorMixin): which entities are visible, then their render
  * states, worked out on several threads for renderers known to be safe;
@@ -120,7 +120,9 @@ abstract class LevelRendererExtractMixin {
 				}
 			}
 		}
+		//#if MC >= 26.1
 		output.lastEntityRenderStateCount = output.entityRenderStates.size();
+		//#endif
 		ci.cancel();
 	}
 }

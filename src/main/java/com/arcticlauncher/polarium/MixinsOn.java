@@ -88,7 +88,11 @@ public final class MixinsOn {
 				for (int i = 0; i + 1 < annotation.values.size(); i += 2) {
 					if ("method".equals(annotation.values.get(i)) && annotation.values.get(i + 1) instanceof List<?> targets) {
 						for (Object target : targets) {
+							//#if MC >= 26.1
 							String name = targetName(String.valueOf(target));
+							//#else
+							String name = targetName(remap(mixin, String.valueOf(target)));
+							//#endif
 							if (name == null || methods.contains(name)) {
 								out.add(name == null ? String.valueOf(target) : name);
 							}
@@ -118,6 +122,28 @@ public final class MixinsOn {
 		}
 		return name.isEmpty() || !name.chars().allMatch(c -> Character.isJavaIdentifierPart(c) || c == '<' || c == '>') ? null : name;
 	}
+	//#if MC < 26.1
+	/**
+	 * A hook's target as the game runs, through the mixin's refmap: before 26.1 the game is
+	 * obfuscated, and a mod made with other names (Yarn, say) names its targets by those. The
+	 * refmap is Mixin's internals (its config's): if it can't be read, the target as written.
+	 */
+	private static String remap(IMixinInfo mixin, String target) {
+		try {
+			Object config = mixin.getConfig();
+			java.lang.reflect.Method get = config.getClass().getMethod("getReferenceMapper");
+			get.setAccessible(true);
+			if (get.invoke(config) instanceof org.spongepowered.asm.mixin.refmap.IReferenceMapper refs) {
+				String mapped = refs.remap(mixin.getClassName().replace('.', '/'), target);
+				return mapped != null ? mapped : target;
+			}
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			// As written.
+		}
+		return target;
+	}
+	//#endif
+
 	private static @Nullable Field field() {
 		try {
 			Field field = ClassInfo.class.getDeclaredField("mixins");

@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 26.2 || MC < 26.1
 package com.arcticlauncher.polarium;
 
 import java.util.HashMap;

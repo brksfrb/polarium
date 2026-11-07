@@ -1,4 +1,4 @@
-//#if MC >= 26.1
+//#if MC >= 1.21.11
 package com.arcticlauncher.polarium.mixin;
 
 import com.arcticlauncher.polarium.ItemModels;
