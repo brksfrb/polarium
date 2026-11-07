@@ -27,6 +27,9 @@ public final class RegionBatches {
 	private static final int MAX_GROUPS = TABLE_SIZE / 2;
 
 	private int[] lists = new int[0];
+	/** Vertices behind each entry of {@link #lists}, and the same for the sorted ids (for the flush budget). */
+	private int[] vertices = new int[0];
+	private int[] sortedVertices = new int[0];
 	private int[] group = new int[0];
 	private int[] regionXOf = new int[0];
 	private int[] regionZOf = new int[0];
@@ -50,7 +53,7 @@ public final class RegionBatches {
 		ensure(count);
 		for (int i = 0; i < count; i++) {
 			BuiltChunk section = sections.get(i);
-			put(i, listOf(section, layer), section.getPos());
+			put(i, listOf(section, layer), verticesOf(section, layer), section.getPos());
 		}
 		draw(count, layer == RenderLayer.TRANSLUCENT, viewX, viewY, viewZ);
 	}
@@ -69,7 +72,7 @@ public final class RegionBatches {
 			ChunkRenderHelperImpl impl = (ChunkRenderHelperImpl) section;
 			ChunkAssemblyHelper helper = impl.method_10170();
 			if (!helper.method_10149(layer)) {
-				put(found++, impl.method_10153(layer, helper), section.getPos());
+				put(found++, impl.method_10153(layer, helper), verticesOf(section, layer), section.getPos());
 			}
 		}
 		if (found > 0) {
@@ -78,8 +81,9 @@ public final class RegionBatches {
 		return found;
 	}
 
-	private void put(int i, int list, BlockPos pos) {
+	private void put(int i, int list, int vertexCount, BlockPos pos) {
 		lists[i] = list;
+		vertices[i] = vertexCount;
 		regionXOf[i] = Regions.origin(pos.getX());
 		regionZOf[i] = Regions.origin(pos.getZ());
 	}
@@ -90,17 +94,49 @@ public final class RegionBatches {
 			groups = runs(count);
 		}
 		layout(count, groups);
+		boolean pipelined = Pipeline.active();
 		for (int g = 0; g < groups; g++) {
 			int from = start[g];
 			int to = g + 1 < groups ? start[g + 1] : drawn;
 			if (to == from) {
 				continue;
 			}
-			sorted.limit(to).position(from);
 			GlStateManager.pushMatrix();
 			GlStateManager.translate((float) (regionX[g] - viewX), (float) (0 - viewY), (float) (regionZ[g] - viewZ));
-			GL11.glCallLists(sorted);
+			if (pipelined) {
+				callBudgeted(from, to);
+			} else {
+				sorted.limit(to).position(from);
+				GL11.glCallLists(sorted);
+			}
 			GlStateManager.popMatrix();
+		}
+		if (pipelined) {
+			Pipeline.boundary();
+		}
+	}
+
+	/**
+	 * One region's lists, cut where the flush budget runs out: the lists so far go in one call, then the
+	 * flush, then the rest. Same lists in the same order as one call.
+	 */
+	private void callBudgeted(int from, int to) {
+		int run = 0;
+		int first = from;
+		for (int i = from; i < to; i++) {
+			run += sortedVertices[i];
+			if (Pipeline.due(run)) {
+				sorted.limit(i + 1).position(first);
+				GL11.glCallLists(sorted);
+				Pipeline.submitted(run);
+				run = 0;
+				first = i + 1;
+			}
+		}
+		if (first < to) {
+			sorted.limit(to).position(first);
+			GL11.glCallLists(sorted);
+			Pipeline.submitted(run);
 		}
 	}
 
@@ -172,7 +208,9 @@ public final class RegionBatches {
 		sorted.clear();
 		for (int i = 0; i < count; i++) {
 			if (lists[i] >= 0) {
-				sorted.put(fill[group[i]]++, lists[i]);
+				int at = fill[group[i]]++;
+				sorted.put(at, lists[i]);
+				sortedVertices[at] = vertices[i];
 			}
 		}
 		drawn = total;
@@ -180,6 +218,10 @@ public final class RegionBatches {
 
 	/** How many display lists the last layout holds. */
 	private int drawn;
+
+	private static int verticesOf(BuiltChunk section, RenderLayer layer) {
+		return ((SectionData) section).polarium$vertices()[layer.ordinal()];
+	}
 
 	private static int listOf(BuiltChunk section, RenderLayer layer) {
 		ChunkRenderHelperImpl impl = (ChunkRenderHelperImpl) section;
@@ -192,6 +234,8 @@ public final class RegionBatches {
 		}
 		int size = Math.max(count, 1024);
 		lists = new int[size];
+		vertices = new int[size];
+		sortedVertices = new int[size];
 		group = new int[size];
 		regionXOf = new int[size];
 		regionZOf = new int[size];

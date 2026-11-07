@@ -15,7 +15,13 @@
 		"AbstractManagerAccess",
 		"BuiltChunkRegionMixin",
 		"ListedRegionRenderMixin",
-		"WorldRendererCloudsMixin"
+		"WorldRendererCloudsMixin",
+		"BuiltChunkDataMixin",
+		"ChunkUploadMixin",
+		"VertexBufferAccess",
+		"PipelineWorldRendererMixin",
+		"PipelineChunkManagersMixin",
+		"PipelineVboManagerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

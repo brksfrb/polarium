@@ -17,6 +17,9 @@ public final class Flags {
 	/** The camera section's open faces kept until a block changes. */
 	public static final boolean OPEN_FACES = on("openfaces");
 
+	/** On software OpenGL only (llvmpipe, softpipe): a glFlush every so many vertices, so rasterizing overlaps the game's work. */
+	public static final boolean PIPELINE = on("pipeline");
+
 	/** Check every terrain walk against the game's own (slow; for tests). */
 	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
 
@@ -28,6 +31,6 @@ public final class Flags {
 	}
 
 	public static String describe() {
-		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES;
+		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES + " pipeline=" + PIPELINE;
 	}
 }
