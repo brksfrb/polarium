@@ -183,10 +183,32 @@ final class SkinAtlas {
 	/** The biggest atlas this GPU takes (asked once). */
 	private int maxSize() {
 		if (maxSize < 0) {
-			int gpu = org.lwjgl.opengl.GL11C.glGetInteger(org.lwjgl.opengl.GL11C.GL_MAX_TEXTURE_SIZE);
+			int gpu = glMaxTextureSize();
 			maxSize = Math.max(FIRST_SIZE, Math.min(MAX_SIZE, Integer.highestOneBit(Math.max(gpu, 1))));
 		}
 		return maxSize;
+	}
+
+	/** GL_MAX_TEXTURE_SIZE, or the atlas is given up when this thread has no OpenGL context (Vulkan). */
+	private int glMaxTextureSize() {
+		String backend = RenderSystem.getDevice().getDeviceInfo().backendName();
+		if ("Vulkan".equalsIgnoreCase(backend)) {
+			failed = true;
+			throw new IllegalStateException("no OpenGL context (" + backend + ")");
+		}
+		org.lwjgl.opengl.GLCapabilities caps;
+		try {
+			caps = org.lwjgl.opengl.GL.getCapabilities();
+		} catch (IllegalStateException e) {
+			failed = true;
+			throw new IllegalStateException("no OpenGL context (" + backend + ")", e);
+		}
+		// No capabilities, or glGetInteger missing from them: the native call aborts the JVM.
+		if (caps == null || caps.glGetIntegerv == 0L) {
+			failed = true;
+			throw new IllegalStateException("glGetInteger is not in this context (" + backend + ")");
+		}
+		return org.lwjgl.opengl.GL11C.glGetInteger(org.lwjgl.opengl.GL11C.GL_MAX_TEXTURE_SIZE);
 	}
 
 	/**
