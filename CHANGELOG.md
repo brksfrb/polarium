@@ -91,6 +91,13 @@
     opaque terrain (where terrain is behind a cloud, including the stretch the
     game's mismatched cloud and terrain depth ranges put behind it, the cloud
     is blended over the sky today and would be blended over the terrain).
+  - Software rendering together (Mesa llvmpipe, 4 raster threads, 1280x720,
+    moving bench, render distance 11, 3 runs each on a shared 32-thread
+    machine): 37.8 FPS with the four switches above off (0.32.0), 53.8 with
+    them on (1.42x); with only `opaquecutout` off 54.3, so that one showed no
+    gain here. Everything off (about vanilla) measured 35 to 37.5 FPS in a
+    noisier batch. With the HUD shown in daylight the vignette switch gave
+    55.4 and 56.7 against 53.9 and 53.0 FPS (2 runs each).
   - Limits: nothing is dropped or lowered (no distance or detail cuts), so a
     GPU-bound setup gains nothing; the gain is on the render thread. 1.8.9 only.
 - Lots of primed TNT: on 26.2 and 26.3, TNT (and other block models drawn

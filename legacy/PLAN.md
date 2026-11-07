@@ -100,3 +100,24 @@ current jar in this scene, on top of item 1. A 10 times gain is not reachable wi
 
 ## Order of work
 1 (verify only), 2, 3, 4, 5, 6. After each: build in CI, one off/on pair, a verify run where there is one.
+
+## CPU path (software OpenGL, llvmpipe): pipeline, faces, opaquecutout, vignette
+
+From a profile on llvmpipe: the game's thread (Mesa's vertex work, clipping, binning) and the rasterizer threads
+took turns, so a frame cost both. Built, each with a switch:
+- `pipeline`: glFlush about every 20,000 vertices (budget per section list, regions cut where it runs out) and at
+  the end of the sky, cloud, entity and terrain passes; GL_RENDERER containing llvmpipe or softpipe only. 37.0 to
+  48.1 FPS on the moving bench (3 runs each). An earlier experiment (flush every 4 glCallLists) measured 10 %
+  slower once on the moving bench; repeated here 3 times against the same build it was 35.2/35.1/36.5 without and
+  35.4/40.7/41.1 FPS with, so that single run was most likely machine load (the box was busier during it). Cutting
+  the flushed batches into slices across all regions (so each batch covers the whole screen for the rasterizer's
+  tile threads) measured the same as plain budget cuts (47.9 against 48.1) and was dropped. Budgets of 10k to 50k
+  vertices measured the same; 100k a little lower.
+- `faces`: buckets by face direction, skipped when facing away (see FaceCulling for the exact test).
+- `opaquecutout`: fully opaque cutout-mipped quads built into the solid layer. No measurable gain on llvmpipe in
+  the moving bench; kept because it is exact and cheap at build time, and may help GPUs (no alpha test).
+- `vignette`: skipped where it cannot change a pixel.
+Left out because they cannot be made pixel-identical: drawing straight to the window (llvmpipe rounds the BGRX
+window buffer differently from the RGBA framebuffer), sky after terrain, clouds after terrain (see CHANGELOG).
+Together: 37.8 to 53.8 FPS (1.42x over 0.32.0) on the moving bench. The profile's 3x target needs more (section
+occlusion culling was the next item in its plan).
