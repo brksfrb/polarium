@@ -174,6 +174,7 @@ tasks.named('compileJava') {
 }
 
 dependencies {
+	testImplementation 'org.ow2.asm:asm:9.9'
 	minecraft "com.mojang:minecraft:${mc}"
 	// 26.1 and later ship unobfuscated; older versions use Mojang's names.
 	if (!atLeast('26.1')) {

@@ -526,16 +526,10 @@ public final class GpuBatches implements GpuFeature {
 	/** The frame's draws are done: get ready for the next. */
 	@Override
 	public void endFrame() {
-		int entities = 0;
-		int draws = 0;
+		report();
 		for (List<Batch> group : groups) {
-			for (Batch batch : group) {
-				entities += batch.instances;
-			}
-			draws += group.size();
 			spare.addAll(group);
 		}
-		report(entities, draws);
 		if (uploaded) {
 			fences.mark(slot());
 		}
@@ -551,12 +545,25 @@ public final class GpuBatches implements GpuFeature {
 	}
 
 	/** Every ten seconds or so, how many entities took how many draws (for checking batching works). */
-	private void report(int entities, int draws) {
-		String what = label;
+	private void report() {
+		if (!com.arcticlauncher.polarium.Timeline.REPORTS) {
+			return;
+		}
 		long now = System.nanoTime();
-		if (com.arcticlauncher.polarium.Timeline.REPORTS && entities > 0 && now - lastReport > REPORT_NANOS) {
+		if (now - lastReport <= REPORT_NANOS) {
+			return;
+		}
+		int entities = 0;
+		int draws = 0;
+		for (List<Batch> group : groups) {
+			for (Batch batch : group) {
+				entities += batch.instances;
+			}
+			draws += group.size();
+		}
+		if (entities > 0) {
 			lastReport = now;
-			LOG.info("Polarium: {} {} in {} GPU draws this frame", entities, what, draws);
+			LOG.info("Polarium: {} {} in {} GPU draws this frame", entities, label, draws);
 		}
 	}
 
