@@ -46,14 +46,23 @@ class Jar:
         return self.members_cache[cls]
 
     def hierarchy(self, cls):
-        """The class and its superclasses (as far as the jar knows them)."""
-        chain = [cls]
-        for _ in range(MAX_SUPERS):
-            head = self.members(chain[-1]).split("{", 1)[0]
-            m = re.search(r"\bextends ([\w.$]+)", head)
-            if not m or not m.group(1).startswith(("net.minecraft", "com.mojang")):
-                break
-            chain.append(m.group(1))
+        """The class, its superclasses and interfaces (including default methods)."""
+        chain, pending = [], [(cls, 0)]
+        for current, depth in pending:
+            if current in chain:
+                continue
+            chain.append(current)
+            if depth >= MAX_SUPERS:
+                continue
+            head = self.members(current).split("{", 1)[0]
+            # A type parameter's `R extends Runnable` is not the class's superclass.
+            while re.search(r"<[^<>]*>", head):
+                head = re.sub(r"<[^<>]*>", "", head)
+            for part in re.split(r"\bextends\b|\bimplements\b", head)[1:]:
+                for parent in part.split(","):
+                    parent = parent.strip()
+                    if parent.startswith(("net.minecraft.", "com.mojang.")):
+                        pending.append((parent, depth + 1))
         return chain
 
     def has_member(self, cls, name):
