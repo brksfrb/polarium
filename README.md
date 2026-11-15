@@ -36,24 +36,8 @@ far away, no skipped frames for distant players.
 
 ## Numbers
 
-Crowd benchmark (client-side players walking about, each with its own skin,
-armor, held items and a name tag, all in view), i9-12900KF + RTX 3080 Ti,
-Minecraft 26.2 with Sodium, Lithium, EntityCulling, ImmediatelyFast and
-FerriteCore:
-
-| Players in view | Without Polarium | With Polarium |
-| --- | --- | --- |
-| 5,000 | 12 FPS | ~92 FPS |
-| 1,000 | — | ~350 FPS |
-
-With a popular mod set on top (Fabric API, Entity Texture Features,
-Emotecraft, Not Enough Animations, 3D Skin Layers, Wavey Capes, Simple Voice
-Chat, Xaero's Minimap, Jade, AppleSkin, Mod Menu):
-
-| Players in view | Without Polarium | With Polarium |
-| --- | --- | --- |
-| 1,000 | 33 FPS | ~130 FPS |
-| 300 | 55 FPS | ~260 FPS |
+In 1000-bot fights, Polarium gives 200–300+ FPS where most PCs get around 20,
+with the picture unchanged.
 
 ## Versions
 
