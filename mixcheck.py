@@ -118,7 +118,8 @@ def check(version):
             methods += re.findall(r'"([^"]+)"', grp)
         for t in methods:
             name = t.split("(")[0]
-            if not jar.has_member(cls, name):
+            # Mixin permits wildcard selectors; the INVOKE target below still gets checked.
+            if "*" not in name and not jar.has_member(cls, name):
                 problems.append(f"{f}: method {t} missing in {cls}")
         for acc in re.findall(r'@(?:Accessor|Invoker)\("(\w+)"\)', src):
             if not jar.has_member(cls, acc):

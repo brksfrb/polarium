@@ -23,6 +23,7 @@ public final class ShaderSources {
 	private record Made(Identifier from, String part) {}
 
 	private static final java.util.Map<Identifier, Made> MADE = java.util.Map.of(
+			GpuChests.SHADER, new Made(Identifier.withDefaultNamespace("core/entity"), "/polarium/chest_instanced.glsl"),
 			ModelMesh.SHADER, new Made(Identifier.withDefaultNamespace("core/entity"), "/polarium/entity_instanced.glsl"),
 			ItemMesh.SHADER, new Made(Identifier.withDefaultNamespace("core/item"), "/polarium/item_instanced.glsl"),
 			GpuText.TEXT_SHADER, new Made(Identifier.withDefaultNamespace("core/text"), "/polarium/text_pooled.glsl"),

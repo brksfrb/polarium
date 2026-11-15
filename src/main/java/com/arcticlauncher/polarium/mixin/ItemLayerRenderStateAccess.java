@@ -1,3 +1,4 @@
+//#if MC >= 26.2
 package com.arcticlauncher.polarium.mixin;
 
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -37,3 +38,5 @@ public interface ItemLayerRenderStateAccess {
 	@Accessor("specialRenderer")
 	@Nullable SpecialModelRenderer<Object> polarium$specialRenderer();
 }
+
+//#endif

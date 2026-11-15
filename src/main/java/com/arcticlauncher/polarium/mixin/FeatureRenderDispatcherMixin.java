@@ -33,6 +33,7 @@ abstract class FeatureRenderDispatcherMixin {
 	private void polarium$prepared(FeatureFrameContext context, SubmitNodeStorage storage,
 			CallbackInfoReturnable<FeatureRenderDispatcher.PreparedFrame> cir) {
 		//#if MC >= 26.3
+		com.arcticlauncher.polarium.gpu.GpuChests.prepareDraws();
 		// Every group is prepared and no render pass is open yet: the GPU data goes up now.
 		for (net.minecraft.client.renderer.feature.FeatureRenderer<?> renderer : featureRenderers.values()) {
 			if (renderer instanceof com.arcticlauncher.polarium.gpu.GpuBatchesHolder holder) {
