@@ -113,6 +113,8 @@ public final class GpuChests implements ChestInstancing.World {
 
 	private final ChestInstancing chests = new ChestInstancing();
 	private boolean failed;
+    private final List<BlockEntity> captured = new ArrayList<>();
+    private boolean recoverFrame;
 	/** Inside the world's extraction, with the path on. */
 	private boolean inFrame;
 	private boolean frameBegun;
@@ -156,7 +158,9 @@ public final class GpuChests implements ChestInstancing.World {
 	/** The world's extraction starts. */
 	public static void begin() {
 		GpuChests g = INSTANCE;
-		g.inFrame = false;
+		g.captured.clear();
+        g.recoverFrame = false;
+        g.inFrame = false;
 		g.frameBegun = false;
 		g.pending = false;
 		Minecraft minecraft = Minecraft.getInstance();
@@ -181,6 +185,13 @@ public final class GpuChests implements ChestInstancing.World {
 	 * this frame, and the game makes nothing for it.
 	 */
 	public static boolean capture(BlockEntity entity, float partialTick, Object breaking, boolean global) {
+        try { return captureChecked(entity, partialTick, breaking, global); }
+        catch (RuntimeException | LinkageError e) {
+            INSTANCE.fail("couldn't capture", e);
+            return false;
+        }
+    }
+    private static boolean captureChecked(BlockEntity entity, float partialTick, Object breaking, boolean global) {
 		GpuChests g = INSTANCE;
 		if (!g.inFrame || !BlockEntityOptions.compatible() || global || entity == null) {
 			return false;
@@ -199,7 +210,9 @@ public final class GpuChests implements ChestInstancing.World {
 			Vec3 camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
 			g.chests.beginFrame(camera.x, camera.y, camera.z, BlockEntityCulling.distance(BlockEntityOptions.get()));
 		}
-		return g.chests.see(entry, breaking != null);
+		boolean accepted = g.chests.see(entry, breaking != null);
+        if (accepted) g.captured.add(entity);
+        return accepted;
 	}
 
 	/** The world's extraction is over: lay the frame's chests out. */
@@ -241,9 +254,11 @@ public final class GpuChests implements ChestInstancing.World {
 		g.armed = false;
 		try {
 			//#if MC >= 26.3
-			g.drawFrame(pass);
+			if (Boolean.getBoolean("polarium.gpuChests.failDraw")) throw new IllegalStateException("injected chest draw failure");
+            g.drawFrame(pass);
 			//#else
 			g.uploadFrame();
+            if (Boolean.getBoolean("polarium.gpuChests.failDraw")) throw new IllegalStateException("injected chest draw failure");
 			g.drawFrame();
 			//#endif
 		} catch (RuntimeException | LinkageError e) {
@@ -252,6 +267,7 @@ public final class GpuChests implements ChestInstancing.World {
 	}
 
 	private void fail(String what, Throwable e) {
+        recoverFrame = !captured.isEmpty();
 		if (!failed) {
 			failed = true;
 			LOG.error("Polarium: {} chests on the GPU; they are drawn the game's way from now on", what, e);
@@ -260,6 +276,49 @@ public final class GpuChests implements ChestInstancing.World {
 		pending = false;
 		armed = false;
 	}
+
+    /** Called after the normal feature frame has closed, with no render pass open.
+     * Only the exceptional frame pays for vanilla extraction and model preparation.
+     */
+    public static void recover(net.minecraft.client.renderer.feature.FeatureRenderDispatcher features,
+            net.minecraft.client.renderer.state.level.CameraRenderState camera) {
+        GpuChests g = INSTANCE;
+        if (!g.recoverFrame) return;
+        g.recoverFrame = false;
+        var minecraft = Minecraft.getInstance();
+        var dispatcher = minecraft.getBlockEntityRenderDispatcher();
+        var storage = new net.minecraft.client.renderer.SubmitNodeStorage();
+        var poses = new PoseStack();
+        var view = RenderSystem.getModelViewStack();
+        view.pushMatrix();
+        view.mul(camera.viewRotationMatrix);
+        try {
+            for (BlockEntity entity : g.captured) {
+                var state = dispatcher.tryExtractRenderState(entity, g.partialTick, null, false);
+                if (state == null) continue;
+                var pos = entity.getBlockPos();
+                poses.pushPose();
+                poses.translate(pos.getX() - camera.pos.x, pos.getY() - camera.pos.y, pos.getZ() - camera.pos.z);
+                dispatcher.submit(state, poses, storage, camera);
+                poses.popPose();
+            }
+            var backup = features.prepareFrame(storage);
+            try {
+                //#if MC >= 26.3
+                var target = minecraft.gameRenderer.mainRenderTarget();
+                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                        () -> "Polarium vanilla chest recovery", target.getColorTextureView(), Optional.empty(),
+                        target.getDepthTextureView(), OptionalDouble.empty())) {
+                    RenderSystem.bindDefaultUniforms(pass);
+                    backup.executeSolid(pass);
+                }
+                //#else
+                backup.executeSolid();
+                //#endif
+            } finally { backup.close(); }
+            LOG.info("Polarium: recovered {} captured chests through vanilla in the failed frame", g.captured.size());
+        } finally { view.popMatrix(); g.captured.clear(); }
+    }
 
 	// ---- which chests ----
 
@@ -317,6 +376,7 @@ public final class GpuChests implements ChestInstancing.World {
 	/** Resources were reloaded: models, textures and shaders are taken again. */
 	public static void reload() {
 		INSTANCE.ready = false;
+        INSTANCE.chests.clear();
 	}
 
 	private static BlockEntity otherHalf(BlockEntity entity) {

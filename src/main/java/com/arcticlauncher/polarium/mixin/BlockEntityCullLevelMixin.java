@@ -22,9 +22,7 @@ abstract class BlockEntityCullLevelMixin {
     //#endif
     private void polarium$beginBlockEntities(CallbackInfo ci) {
         BlockEntityCulling.begin();
-        //#if MC >= 26.2
         com.arcticlauncher.polarium.gpu.GpuChests.begin();
-        //#endif
     }
 
     //#if MC >= 26.2

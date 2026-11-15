@@ -15,23 +15,17 @@ public final class BlockEntityOptions {
     public static boolean compatible() { return !rendererReplaced && CompatibilityState.VALUE; }
     public static boolean rendererSupported(Object renderer) {
         if (renderer == null) return false;
-        if (!renderer.getClass().getName().startsWith("net.minecraft.client.renderer.blockentity.")) {
-            if (!rendererReplaced) LoggerFactory.getLogger("Polarium").info(
-                    "Polarium: {} replaces a block entity renderer; block entity path disabled", renderer.getClass().getName());
-            rendererReplaced = true;
-            return false;
-        }
-        return true;
+        // Class references are remapped by Loom; named package strings are not.
+        // Production 1.21.11 renderers have intermediary names (net.minecraft.class_*).
+        for (Class<?> vanilla : Renderers.TYPES) if (renderer.getClass() == vanilla) return true;
+        if (!rendererReplaced) LoggerFactory.getLogger("Polarium").info(
+                "Polarium: {} replaces a block entity renderer; block entity path disabled", renderer.getClass().getName());
+        rendererReplaced = true;
+        return false;
     }
-    private static boolean check() {
-        for (String id : new String[] {"betterblockentities", "enhancedblockentities", "fastchest", "iris", "oculus",
-                "optifabric", "immersive_portals", "imm_ptl_core", "entity_model_features", "entity_texture_features", "canvas", "vulkanmod"}) {
-            if (FabricLoader.getInstance().isModLoaded(id)) {
-                LoggerFactory.getLogger("Polarium").info("Polarium: {} loaded; block entities stay on vanilla rendering", id);
-                return false;
-            }
-        }
-        for (Class<?> target : new Class<?>[] {
+
+    private static final class Renderers {
+        static final Class<?>[] TYPES = {
                 net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher.class,
                 net.minecraft.client.renderer.blockentity.ChestRenderer.class,
                 //#if MC < 26.2
@@ -50,7 +44,17 @@ public final class BlockEntityOptions {
                 net.minecraft.client.renderer.blockentity.ShulkerBoxRenderer.class,
                 net.minecraft.client.renderer.blockentity.BannerRenderer.class,
                 net.minecraft.client.renderer.blockentity.BellRenderer.class,
-                net.minecraft.client.renderer.blockentity.DecoratedPotRenderer.class}) {
+                net.minecraft.client.renderer.blockentity.DecoratedPotRenderer.class};
+    }
+    private static boolean check() {
+        for (String id : new String[] {"betterblockentities", "enhancedblockentities", "fastchest", "iris", "oculus",
+                "optifabric", "immersive_portals", "imm_ptl_core", "entity_model_features", "entity_texture_features", "canvas", "vulkanmod"}) {
+            if (FabricLoader.getInstance().isModLoaded(id)) {
+                LoggerFactory.getLogger("Polarium").info("Polarium: {} loaded; block entities stay on vanilla rendering", id);
+                return false;
+            }
+        }
+        for (Class<?> target : Renderers.TYPES) {
             var mixins = MixinsOn.of(target.getName());
             if (mixins == null) {
                 LoggerFactory.getLogger("Polarium").warn("Polarium: cannot inspect {}; block entity path disabled", target.getName());

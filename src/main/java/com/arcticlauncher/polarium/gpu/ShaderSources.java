@@ -1,4 +1,4 @@
-//#if MC >= 26.2
+//#if MC >= 1.21.11
 package com.arcticlauncher.polarium.gpu;
 
 import java.io.IOException;
@@ -23,11 +23,15 @@ public final class ShaderSources {
 	private record Made(Identifier from, String part) {}
 
 	private static final java.util.Map<Identifier, Made> MADE = java.util.Map.of(
-			GpuChests.SHADER, new Made(Identifier.withDefaultNamespace("core/entity"), "/polarium/chest_instanced.glsl"),
+			GpuChests.SHADER, new Made(Identifier.withDefaultNamespace("core/entity"), "/polarium/chest_instanced.glsl")
+            //#if MC >= 26.2
+            ,
 			ModelMesh.SHADER, new Made(Identifier.withDefaultNamespace("core/entity"), "/polarium/entity_instanced.glsl"),
 			ItemMesh.SHADER, new Made(Identifier.withDefaultNamespace("core/item"), "/polarium/item_instanced.glsl"),
 			GpuText.TEXT_SHADER, new Made(Identifier.withDefaultNamespace("core/text"), "/polarium/text_pooled.glsl"),
-			GpuText.BACKGROUND_SHADER, new Made(Identifier.withDefaultNamespace("core/text_background"), "/polarium/text_background_pooled.glsl"));
+			GpuText.BACKGROUND_SHADER, new Made(Identifier.withDefaultNamespace("core/text_background"), "/polarium/text_background_pooled.glsl")
+            //#endif
+            );
 	/** The game's vertex inputs that Polarium supplies (as minecraft_Position, …). */
 	private static final String INPUTS = "Position|Color|UV0|UV1|UV2|Normal";
 	private static final Pattern VERSION = Pattern.compile("(?m)^#version[^\\n]*\\n");
@@ -66,7 +70,12 @@ public final class ShaderSources {
 		if (game == null) {
 			throw new IllegalStateException("the game's " + made.from() + " shader isn't loaded");
 		}
-		return adapt(game, read(made.part()), made.from());
+		String part = read(made.part());
+        //#if MC < 26.2
+        part = part.replace("uniform samplerBuffer PolariumChests;", "layout(std140) uniform PolariumChests { vec4 PolariumChestData[544]; };")
+            .replaceAll("texelFetch\\(PolariumChests, ([^;]+)\\)", "PolariumChestData[$1]");
+        //#endif
+        return adapt(game, part, made.from());
 	}
 
 	/** The game's shader with its inputs supplied by {@code part} (which defines polarium_main). */

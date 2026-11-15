@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- GPU-instanced single/double, trapped, ender and copper chests on Minecraft
+  1.21.11 and 26.1.2, using vanilla atlas/model/shader resources and bounded
+  uniform batches. Vanilla states remain available until the draw succeeds.
+- Recover captured chests through vanilla in the same frame after a GPU failure
+  on 26.2/26.3, instead of dropping them for a frame.
+- Use remappable class references for renderer compatibility checks on production 1.21.11.
+
 - Add block entity frustum culling for modern targets, including 1.21.11.
 - Instance chests on 26.2/26.3 through Polarium's existing GPU pipeline, with
   vanilla textures, lighting, lid animation and breaking-overlay fallback.

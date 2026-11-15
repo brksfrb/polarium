@@ -1,6 +1,6 @@
 package com.arcticlauncher.polarium.mixin;
 
-//#if MC >= 26.2
+//#if MC >= 1.21.11
 import com.arcticlauncher.polarium.gpu.GpuChests;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;

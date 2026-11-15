@@ -293,26 +293,37 @@ public class ChestSceneBench {
 		assertEquals(stillInstances, frame.total());
 
 		double frameBytes = (ChestInstancing.SPRITES * 4 + CHESTS * (double) ChestInstancing.FLOATS) * 4;
+        boolean older = System.getProperty("polarium.test.minecraft").equals("1.21.11")
+                || System.getProperty("polarium.test.minecraft").equals("26.1.2");
+        int uniformDraws = ChestUniformBatches.count(frame);
+        int stride = (ChestUniformBatches.BYTES + 255) / 256 * 256;
+        java.nio.ByteBuffer batchData = java.nio.ByteBuffer.allocateDirect(stride * uniformDraws).order(java.nio.ByteOrder.nativeOrder());
+        for (int i = 0; i < 50; i++) ChestUniformBatches.pack(batchData, frame, stride);
+        long packStart = System.nanoTime();
+        for (int i = 0; i < 200; i++) ChestUniformBatches.pack(batchData, frame, stride);
+        double packMs = (System.nanoTime() - packStart) / 200e6;
 		StringBuilder out = new StringBuilder();
 		out.append("Minecraft target: " + System.getProperty("polarium.test.minecraft") + " (headless shared-core workload, not in-game FPS)\n");
-		out.append("GPU column exercises the shared core; adapters enable it only on 26.2+. Earlier targets use the culling column.\n");
+		out.append("GPU CPU timings exercise the shared core, not the game adapter or GPU. Older adapters retain vanilla states and use 256-instance uniform batches.\n");
 		out.append(String.format("Storage hall: %,d chests (double chests) and %,d hoppers within 64 blocks of the camera; %d views from its middle%n", CHESTS, HOPPERS,
 				views.size()));
 		out.append(String.format("hoppers: no renderer and no client tick on 26.2: 0 calls, 0 draws, 0 ns in every column%n%n"));
 		out.append(String.format("%-46s %16s %16s %16s%n", "per frame", "game (main)", "+ culling", "+ GPU chests"));
-		out.append(String.format("%-46s %,16.0f %,16.0f %16s%n", "chest renderer calls (average)", game, culled, "0"));
-		out.append(String.format("%-46s %,16d %,16d %16s%n", "chest renderer calls (worst view)", worstGame, worstCulled, "0"));
-		out.append(String.format("%-46s %,16.0f %,16.0f %16s%n", "render states made", game, culled, "0"));
+		out.append(String.format("%-46s %,16.0f %,16.0f %16s%n", "chest model submissions (average)", game, culled, "0"));
+		out.append(String.format("%-46s %,16d %,16d %16s%n", "chest model submissions (worst view)", worstGame, worstCulled, "0"));
+		out.append(String.format("%-46s %,16.0f %,16.0f %16s%n", "render states made", game, culled, older ? String.format("%,.0f (retained)", culled) : "0"));
 		out.append(String.format("%-46s %,16.0f %,16.0f %16s%n", "vertices built on the CPU", game * VERTICES, culled * VERTICES, "0"));
 		out.append(String.format("%-46s %,16.1f %,16.1f %16s%n", "vertex data built and uploaded (MB)", game * VERTICES * VERTEX_BYTES / 1e6,
 				culled * VERTICES * VERTEX_BYTES / 1e6, "0 (view still)"));
-		out.append(String.format("%-46s %16s %16s %16s%n", "chest draw calls", "1", "1", "3 (instanced)"));
+		out.append(String.format("%-46s %16s %16s %16s%n", "chest draw calls", "1", "1", older ? uniformDraws + " (instanced, still)" : "3 (instanced)"));
 		out.append(String.format("%-46s %,16.1f %,16.1f %16s%n", "CPU ms, vertex work alone (stand-in, floor)", game * nsVertices / 1e6,
 				(culled * nsVertices + game * nsCull) / 1e6, "-"));
 		out.append(String.format("%-46s %16s %16s %,16.2f%n", "CPU ms, view still (measured)", "-", "-", nsStill / 1e6));
 		out.append(String.format("%-46s %16s %16s %,16.2f%n", "CPU ms, view turning every frame (measured)", "-", "-", nsTurning / 1e6));
 		out.append(String.format("%-46s %16s %16s %,16.2f%n", "CPU ms, ten lids moving (measured)", "-", "-", nsMoving / 1e6));
 		out.append(String.format("%n+ GPU chests, details:%n"));
+        if (older) out.append(String.format("  uniform batching: %d draws still, %.3f ms to repack changed instances (CPU only), %.2f MB padded buffer; stable frames reuse it%n",
+            uniformDraws, packMs, stride * uniformDraws / 1e6));
 		out.append(String.format("  instances drawn: %,d with the view still, %,.0f on average while turning (the GPU clips what is off screen)%n", stillInstances,
 				turningInstances));
 		out.append(String.format("  instance data uploaded per frame: 0 MB with the view still, %.2f MB while turning or while a lid moves%n", copied * 4 / 1e6));

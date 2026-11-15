@@ -87,7 +87,8 @@ def preprocessSource = { String text, String name ->
 	if (!stack.isEmpty()) {
 		throw new GradleException("unclosed //#if in ${name}")
 	}
-	return out.toString()
+	// Select the chest adapter without scattering version imports through its shared hooks.
+	return atLeast('26.2') ? out.toString() : out.toString().replaceAll('\\bGpuChests\\b', 'OlderGpuChests')
 }
 
 /**
@@ -255,7 +256,17 @@ if (project.hasProperty('blockEntityScene')) {
         vmArg '-Dpolarium.bench=blocks'
         if (project.hasProperty('blockEntityCompatOnly')) { vmArg '-Dpolarium.bench.compatOnly=true' }
         vmArg '-Dpolarium.gpuChests.report=true'
+        if (project.hasProperty('chestChristmasTest')) { vmArg '-Dpolarium.bench.christmas=true' }
+        if (project.hasProperty('chestFailureTest')) { vmArg '-Dpolarium.gpuChests.failDraw=true' }
         runDir "run/block-entities-${mc}"
         if (atLeast('26.3')) { programArg '--graphicsBackend'; programArg 'opengl' }
+    }
+}
+
+// Optional local compatibility scene; Loom remaps these jars for the development client.
+if (project.hasProperty('blockEntitySodiumDir')) {
+    dependencies {
+        if (atLeast('26.1')) { runtimeOnly fileTree(project.property('blockEntitySodiumDir')) { include '*.jar' } }
+        else { modRuntimeOnly fileTree(project.property('blockEntitySodiumDir')) { include '*.jar' } }
     }
 }

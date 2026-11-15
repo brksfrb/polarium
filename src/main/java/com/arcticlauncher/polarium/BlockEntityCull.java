@@ -43,7 +43,7 @@ public final class BlockEntityCull {
 		// draw the world again through each portal. Culling by the camera's view would leave holes there.
 		FabricLoader loader = FabricLoader.getInstance();
 		BlockEntityCulling.shadowPasses(!BlockEntityOptions.compatible());
-        //#if MC < 26.2
+        //#if MC < 1.21.11
         org.slf4j.LoggerFactory.getLogger("Polarium").info(
                 "Polarium: block entity culling available; GPU chests require the 26.2+ entity instancing backend");
         //#endif
