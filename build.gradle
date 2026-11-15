@@ -109,6 +109,7 @@ def renames = atLeast('26.3') ? [
 		'com.mojang.blaze3d.shaders.ShaderType'          : 'com.mojang.renderpearl.api.pipeline.ShaderType',
 		'com.mojang.blaze3d.shaders.UniformType'         : 'com.mojang.renderpearl.api.pipeline.UniformType',
 		'com.mojang.blaze3d.systems.CommandEncoder'      : 'com.mojang.renderpearl.api.commands.CommandEncoder',
+		'com.mojang.blaze3d.systems.DeviceType'          : 'com.mojang.renderpearl.api.device.DeviceType',
 		'com.mojang.blaze3d.systems.GpuDevice'           : 'com.mojang.renderpearl.api.device.GpuDevice',
 		'com.mojang.blaze3d.systems.GpuSurface'          : 'com.mojang.renderpearl.api.device.GpuSurface',
 		'com.mojang.blaze3d.systems.RenderPass'          : 'com.mojang.renderpearl.api.commands.RenderPass',
@@ -254,8 +255,11 @@ test {
 if (project.hasProperty('blockEntityScene')) {
     loom.runs.client {
         vmArg '-Dpolarium.bench=blocks'
+        if (project.hasProperty('spriteScene')) { vmArg '-Dpolarium.bench.spriteScene=true'; vmArg '-Dpolarium.gpuSpriteModels=true' }
         if (project.hasProperty('blockEntityCompatOnly')) { vmArg '-Dpolarium.bench.compatOnly=true' }
         vmArg '-Dpolarium.gpuChests.report=true'
+        vmArg '-Dpolarium.gpuSpriteModels.report=true'
+        if (project.hasProperty('spriteFailureTest')) { vmArg '-Dpolarium.gpuSpriteModels.failDraw=true' }
         if (project.hasProperty('chestChristmasTest')) { vmArg '-Dpolarium.bench.christmas=true' }
         if (project.hasProperty('chestFailureTest')) { vmArg '-Dpolarium.gpuChests.failDraw=true' }
         runDir "run/block-entities-${mc}"

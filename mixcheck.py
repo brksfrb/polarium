@@ -33,6 +33,24 @@ def jar_for(version):
     return found[0] if found else None
 
 
+def direct_parents(header):
+    """Erase type parameters before parsing extends/implements (R extends Runnable is not a superclass)."""
+    plain = []
+    depth = 0
+    for char in header:
+        if char == "<":
+            depth += 1
+        elif char == ">":
+            depth -= 1
+        elif depth == 0:
+            plain.append(char)
+    text = "".join(plain)
+    parents = []
+    for match in re.finditer(r"\b(?:extends|implements)\s+(.+?)(?=\s+(?:extends|implements)\s+|$)", text):
+        parents.extend(part.strip() for part in match.group(1).split(","))
+    return [parent for parent in parents if parent.startswith(("net.minecraft.", "com.mojang."))]
+
+
 class Jar:
     def __init__(self, path):
         self.path = path
@@ -46,14 +64,19 @@ class Jar:
         return self.members_cache[cls]
 
     def hierarchy(self, cls):
-        """The class and its superclasses (as far as the jar knows them)."""
-        chain = [cls]
-        for _ in range(MAX_SUPERS):
-            head = self.members(chain[-1]).split("{", 1)[0]
-            m = re.search(r"\bextends ([\w.$]+)", head)
-            if not m or not m.group(1).startswith(("net.minecraft", "com.mojang")):
-                break
-            chain.append(m.group(1))
+        """The class, its superclasses and default-method interfaces."""
+        chain = []
+        pending = [(cls, 0)]
+        seen = set()
+        while pending:
+            current, depth = pending.pop(0)
+            if current in seen:
+                continue
+            seen.add(current)
+            chain.append(current)
+            if depth < MAX_SUPERS:
+                header = self.members(current).split("{", 1)[0]
+                pending.extend((parent, depth + 1) for parent in direct_parents(header))
         return chain
 
     def has_member(self, cls, name):

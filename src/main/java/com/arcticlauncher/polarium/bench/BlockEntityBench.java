@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 /** Opt-in paired vanilla/GPU screenshots: -Dpolarium.bench=blocks. Creates an offline test world. */
 public final class BlockEntityBench implements ClientModInitializer {
+	private static final boolean SPRITES = Boolean.getBoolean("polarium.bench.spriteScene");
 	private static final java.util.List<Long> FRAME_TIMES = new java.util.ArrayList<>();
     private static long frameStart;
     public static void frameStart() {
@@ -99,6 +100,7 @@ public final class BlockEntityBench implements ClientModInitializer {
 	}
 
 	private static void setUp() {
+		if (SPRITES) { setUpSprites(); return; }
 		Minecraft mc = Minecraft.getInstance();
 		var server = mc.getSingleplayerServer();
 		server.execute(() -> {
@@ -130,23 +132,53 @@ public final class BlockEntityBench implements ClientModInitializer {
 		later(8, () -> pair(0));
 	}
 
+	private static void setUpSprites() {
+		var server = Minecraft.getInstance().getSingleplayerServer();
+		server.execute(() -> {
+			var source = server.createCommandSourceStack();
+			for (String command : List.of("gamerule advance_time false", "gamerule advance_weather false", "time set noon",
+					"weather clear", "fill -24 -60 -4 24 -60 36 stone", "tp @a 0.5 -54 -4.5 0 20")) {
+				server.getCommands().performPrefixedCommand(source, command);
+			}
+			String[] facings = {"up", "down", "north", "south", "east", "west"};
+			String[] colors = {"shulker_box", "red_shulker_box", "blue_shulker_box", "white_shulker_box"};
+			int n = 0;
+			for (int z = 4; z <= 28; z += 3) for (int x = -12; x <= 12; x += 2) {
+				server.getCommands().performPrefixedCommand(source, "setblock " + x + " -59 " + z + " "
+						+ colors[n % colors.length] + "[facing=" + facings[n++ % facings.length] + "]");
+			}
+			for (int x = -10; x <= 10; x += 2) {
+				server.getCommands().performPrefixedCommand(source, "setblock " + x + " -59 2 oak_sign");
+				server.getCommands().performPrefixedCommand(source, "setblock " + x + " -59 30 white_banner");
+			}
+		});
+		later(8, () -> pair(0));
+	}
+
 	private static void later(int seconds, Runnable action) {
 		TIMER.schedule(() -> run(action), seconds, TimeUnit.SECONDS);
 	}
 
 	private static void pair(int phase) {
 		Minecraft mc = Minecraft.getInstance();
+		if (phase == 1 && SPRITES) {
+			for (int z = 4; z <= 28; z += 3) for (int x = -12; x <= 12; x += 2) {
+				var be = mc.level.getBlockEntity(new BlockPos(x, -59, z));
+				if (be != null) be.triggerEvent(1, 1);
+			}
+		}
 		if (phase == 1) {
 			for (int x : new int[] {-3, -2, -8}) {
 				var be = mc.level.getBlockEntity(new BlockPos(x, -59, x == -8 ? 6 : 4));
 				if (be != null) be.triggerEvent(1, 1);
 			}
 		}
-		if (phase == 2) mc.level.destroyBlockProgress(4711, new BlockPos(-3, -59, 4), 6);
-		com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = false;
+		if (phase == 2) mc.level.destroyBlockProgress(4711, new BlockPos(SPRITES ? 0 : -3, -59, 4), 6);
+		com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = SPRITES;
+        com.arcticlauncher.polarium.BlockEntityOptions.get().spriteModelInstancing = false;
         FRAME_TIMES.clear();
 		later(3, () -> screenshot(mc));
-		later(4, () -> { com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = true; FRAME_TIMES.clear(); });
+		later(4, () -> { com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = true; com.arcticlauncher.polarium.BlockEntityOptions.get().spriteModelInstancing = true; FRAME_TIMES.clear(); });
 		later(7, () -> screenshot(mc));
 		if (phase < 2) later(9, () -> pair(phase + 1));
 		else later(10, mc::stop);
@@ -174,7 +206,7 @@ public final class BlockEntityBench implements ClientModInitializer {
         if (!FRAME_TIMES.isEmpty()) {
             long[] times = FRAME_TIMES.stream().mapToLong(Long::longValue).sorted().toArray();
             LOG.info("blocks bench: {} frame CPU median={} ms p95={} ms ({} frames, software GL includes rendering and pacing)",
-                com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing ? "GPU" : "vanilla",
+                (SPRITES ? com.arcticlauncher.polarium.BlockEntityOptions.get().spriteModelInstancing : com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing) ? "GPU" : "vanilla",
                 times[times.length / 2] / 1e6, times[(times.length - 1) * 95 / 100] / 1e6, times.length);
             FRAME_TIMES.clear();
         }

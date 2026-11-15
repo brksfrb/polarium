@@ -16,10 +16,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class GpuChestRecoveryMixin {
     @Shadow @Final private FeatureRenderDispatcher featureRenderDispatcher;
     @Shadow @Final private LevelRenderState levelRenderState;
+    @Inject(method = "render", at = @At("HEAD"))
+    private void polarium$beginSpriteModels(CallbackInfo ci) {
+        com.arcticlauncher.polarium.gpu.GpuSpriteModels.beginWorldFrame();
+    }
+    @Inject(method = "render", at = @At("RETURN"))
+    private void polarium$endSpriteModels(CallbackInfo ci) {
+        com.arcticlauncher.polarium.gpu.GpuSpriteModels.endWorldFrame();
+    }
     @Inject(method = "render", at = @At(value = "INVOKE",
         target = "Lnet/minecraft/client/renderer/feature/FeatureRenderDispatcher$PreparedFrame;close()V", shift = At.Shift.AFTER))
     private void polarium$recoverChests(CallbackInfo ci) {
         GpuChests.recover(featureRenderDispatcher, levelRenderState.cameraRenderState);
+        com.arcticlauncher.polarium.gpu.GpuSpriteModels.recover(featureRenderDispatcher, levelRenderState.cameraRenderState);
     }
 }
 //#endif

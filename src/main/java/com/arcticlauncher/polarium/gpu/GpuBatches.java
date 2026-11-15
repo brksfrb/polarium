@@ -272,6 +272,7 @@ public final class GpuBatches implements GpuFeature {
 			if (!uploaded || disabled()) {
 				return;
 			}
+			GpuSpriteModels.checkDraw();
 			com.arcticlauncher.polarium.Timeline.start(com.arcticlauncher.polarium.Timeline.Step.CROWD_DRAWS);
 			//#if MC >= 26.3
 			drawInto(java.util.Objects.requireNonNull(pass, "no render pass"), stage, groups.get(groupIndex), instanceBuffers[slot()], drawBuffers[slot()]);
@@ -279,7 +280,7 @@ public final class GpuBatches implements GpuFeature {
 			drawAll(groups.get(groupIndex), instanceBuffers[slot()], drawBuffers[slot()]);
 			//#endif
 			com.arcticlauncher.polarium.Timeline.end(com.arcticlauncher.polarium.Timeline.Step.CROWD_DRAWS);
-		} catch (RuntimeException e) {
+		} catch (RuntimeException | LinkageError e) {
 			disable("drawing models on the GPU failed", e);
 		}
 	}
@@ -288,7 +289,7 @@ public final class GpuBatches implements GpuFeature {
 	public void prepareDraws() {
 		try {
 			upload(false);
-		} catch (RuntimeException e) {
+		} catch (RuntimeException | LinkageError e) {
 			disable("preparing models for the GPU failed", e);
 		}
 	}

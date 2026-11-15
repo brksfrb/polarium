@@ -45,6 +45,7 @@ public final class GpuEntities {
 		});
 		batches.afterFrame(() -> {
 			poses.clear();
+			GpuSpriteModels.finishFrame();
 			atlas.endFrame();
 		});
 	}
@@ -125,9 +126,9 @@ public final class GpuEntities {
 
 	private static boolean takeable(ModelFeatureRenderer.Submit<?> submit) {
 		//#if MC >= 26.3
-		return submit.uvMapping() == null && submit.sheetedDecalPose() == null
+		return (submit.uvMapping() == null || GpuSpriteModels.supported(submit)) && submit.sheetedDecalPose() == null
 		//#else
-		return submit.sprite() == null && submit.sheetedDecalPose() == null
+		return (submit.sprite() == null || GpuSpriteModels.supported(submit)) && submit.sheetedDecalPose() == null
 		//#endif
 				&& InstancedPipelines.supports(submit.renderType().pipeline(), ENTITY_SHADER);
 	}
@@ -145,6 +146,7 @@ public final class GpuEntities {
 		RenderType renderType = submit.renderType();
 		try {
 			add(submit, renderType);
+			if (GpuSpriteModels.sprite(submit) != null) GpuSpriteModels.captured(submit);
 			return true;
 		} catch (RuntimeException | LinkageError e) {
 			GpuBatches.disable("couldn't take a model onto the GPU", e);
@@ -504,7 +506,8 @@ public final class GpuEntities {
 		ModelMesh mesh = mesh(model);
 		float[] uv = OWN_TEXTURE;
 		com.mojang.blaze3d.textures.GpuTextureView atlasView = null;
-		int cell = atlasCell(renderType);
+		var sprite = GpuSpriteModels.sprite(submit);
+		int cell = sprite == null ? atlasCell(renderType) : -1;
 		if (cell >= 0) {
 			atlasView = atlas.view();
 			float size = atlas.size();
@@ -512,6 +515,10 @@ public final class GpuEntities {
 			cellUv[1] = atlas.cellY(cell) / size;
 			cellUv[2] = SkinAtlas.CELL / size;
 			cellUv[3] = SkinAtlas.CELL / size;
+			uv = cellUv;
+		}
+		if (sprite != null) {
+			com.arcticlauncher.polarium.SpriteInstancing.placement(sprite.getU0(), sprite.getV0(), sprite.getU1(), sprite.getV1(), cellUv);
 			uv = cellUv;
 		}
 		InstanceData data = batches.add(renderType, mesh, atlasView);

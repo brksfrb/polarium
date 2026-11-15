@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 public final class BlockEntityOptions {
     public boolean blockEntityCulling = !"false".equals(System.getProperty("polarium.blockEntityCulling"));
     public boolean chestInstancing = !"false".equals(System.getProperty("polarium.gpuChests"));
+    public boolean spriteModelInstancing = !"false".equals(System.getProperty("polarium.gpuSpriteModels"));
     public int blockEntityDistance = 64;
     private static final BlockEntityOptions INSTANCE = new BlockEntityOptions();
     private static final class CompatibilityState { static final boolean VALUE = check(); }
