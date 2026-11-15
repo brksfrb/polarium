@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add block entity frustum culling for modern targets, including 1.21.11.
+- Instance chests on 26.2/26.3 through Polarium's existing GPU pipeline, with
+  vanilla textures, lighting, lid animation and breaking-overlay fallback.
+- Default-on JVM options; disable both paths for BBE, shader mods and unknown
+  renderer changes. Add cache/culling regressions, a storage-hall benchmark and
+  an opt-in paired screenshot scene.
+
+
 - Minecraft 1.8.9 (Legacy Fabric, `legacy/`): world rendering is about 1.4 to
   2.3 times faster at the same picture. Same scene each run (seed 20261026,
   hovering at 0 110 0, turning, render distance 11, VBOs off, about 516 visible

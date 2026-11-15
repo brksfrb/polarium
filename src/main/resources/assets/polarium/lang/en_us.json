@@ -1,0 +1,4 @@
+{
+	"polarium.option.blockEntityCulling": "Cull off-screen block entities",
+	"polarium.option.gpuChests": "Draw chests with GPU instancing"
+}

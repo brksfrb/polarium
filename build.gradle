@@ -121,6 +121,13 @@ def renames = atLeast('26.3') ? [
 		// Type-annotated names (`pkg.@Nullable Type`) name the package alone.
 		'com.mojang.blaze3d.textures.@'                  : 'com.mojang.renderpearl.api.textures.@',
 ] : [:]
+if (!atLeast('26.1')) {
+    renames += [
+        'net.minecraft.client.resources.model.geometry.BakedQuad': 'net.minecraft.client.renderer.block.model.BakedQuad',
+        'net.minecraft.client.resources.model.cuboid.ItemTransform': 'net.minecraft.client.renderer.block.model.ItemTransform',
+        'net.minecraft.client.renderer.state.level.CameraRenderState': 'net.minecraft.client.renderer.state.CameraRenderState',
+    ]
+}
 
 /** Whole names only: GpuBuffer must not catch GpuBufferSlice. Mixin targets name them as paths (a/b/C) too. */
 def applyRenames = { String text ->
@@ -229,4 +236,26 @@ tasks.withType(JavaCompile).configureEach {
 java {
 	sourceCompatibility = JavaVersion.toVersion(javaVersion)
 	targetCompatibility = JavaVersion.toVersion(javaVersion)
+}
+
+// Headless regressions and a deterministic storage-hall workload on every target.
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+test {
+    useJUnitPlatform()
+    systemProperty 'polarium.test.minecraft', mc
+    testLogging { showStandardStreams = true }
+}
+
+if (project.hasProperty('blockEntityScene')) {
+    loom.runs.client {
+        vmArg '-Dpolarium.bench=blocks'
+        if (project.hasProperty('blockEntityCompatOnly')) { vmArg '-Dpolarium.bench.compatOnly=true' }
+        vmArg '-Dpolarium.gpuChests.report=true'
+        runDir "run/block-entities-${mc}"
+        if (atLeast('26.3')) { programArg '--graphicsBackend'; programArg 'opengl' }
+    }
 }

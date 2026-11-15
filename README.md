@@ -39,13 +39,20 @@ far away, no skipped frames for distant players.
 In 1000-bot fights, Polarium gives 200–300+ FPS where most PCs get around 20,
 with the picture unchanged.
 
+Block entities also benefit from conservative off-screen culling on 1.21.11,
+26.1.2, 26.2 and 26.3. On 26.2/26.3, single and double chests use GPU instancing,
+including trapped, ender and copper variants. Both options default on; Polarium
+steps aside for Better Block Entities and shader mods. See the
+[block entity options, compatibility and benchmarks](docs/block-entities.md).
+
 ## Versions
 
 | Minecraft | Fabric Loader | What's in |
 | --- | --- | --- |
 | 26.3 | 0.16.9+ | everything but GPU name tags (name tags are drawn the game's way) |
 | 26.2 | 0.16.9+ | everything |
-| 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states); the GPU path is being ported |
+| 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states), block entity culling; the GPU path is being ported |
+| 1.21.11 | 0.16.9+ | the CPU side and block entity culling; no GPU instancing |
 
 No Fabric API needed.
 

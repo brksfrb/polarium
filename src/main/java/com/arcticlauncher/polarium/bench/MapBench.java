@@ -83,7 +83,12 @@ public final class MapBench implements ClientModInitializer {
 		mc.options.renderDistance().set(8);
 		String name = "Polarium Maps Bench " + System.currentTimeMillis();
 		LevelSettings settings = new LevelSettings(name, GameType.CREATIVE,
+				//#if MC >= 26.1
 				new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false), true, WorldDataConfiguration.DEFAULT);
+		//#else
+				false, Difficulty.PEACEFUL, true, new net.minecraft.world.level.gamerules.GameRules(
+						WorldDataConfiguration.DEFAULT.enabledFeatures()), WorldDataConfiguration.DEFAULT);
+		//#endif
 		LOG.info("maps bench: creating {}", name);
 		mc.createWorldOpenFlows().createFreshLevel(name, settings, WorldOptions.defaultWithRandomSeed(),
 				registries -> registries.lookupOrThrow(Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions(),

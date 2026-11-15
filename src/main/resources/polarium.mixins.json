@@ -70,7 +70,16 @@
 		"LevelRendererExtractMixin",
 		"ComponentLayoutMixin",
 		"PreparedTextRunsMixin",
-		"GlyphRendererAccess"
+		"GlyphRendererAccess",
+		"BlockEntityCullMixin",
+		"BlockEntityCullLevelMixin",
+		"BlockEntityFrustumMixin",
+		"GpuChestDrawMixin",
+		"GpuChestPassMixin",
+		"GpuChestDirtyMixin",
+		"GpuChestSlotMixin",
+		"GpuChestLidMixin",
+		"GpuChestLightMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
