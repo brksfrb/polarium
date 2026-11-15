@@ -1,6 +1,6 @@
 package com.arcticlauncher.polarium.mixin;
 
-//#if MC >= 26.2
+//#if MC >= 1.21.11
 import com.arcticlauncher.polarium.gpu.GpuChests;
 import net.minecraft.client.multiplayer.ClientLevel;
 import org.spongepowered.asm.mixin.Mixin;

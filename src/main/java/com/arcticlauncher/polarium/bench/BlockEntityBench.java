@@ -21,7 +21,15 @@ import org.slf4j.LoggerFactory;
 
 /** Opt-in paired vanilla/GPU screenshots: -Dpolarium.bench=blocks. Creates an offline test world. */
 public final class BlockEntityBench implements ClientModInitializer {
-	private static final Logger LOG = LoggerFactory.getLogger("Polarium bench");
+	private static final java.util.List<Long> FRAME_TIMES = new java.util.ArrayList<>();
+    private static long frameStart;
+    public static void frameStart() {
+        if ("blocks".equals(System.getProperty("polarium.bench"))) frameStart = System.nanoTime();
+    }
+    public static void frameEnd() {
+        if (frameStart != 0) { FRAME_TIMES.add(System.nanoTime() - frameStart); frameStart = 0; }
+    }
+    private static final Logger LOG = LoggerFactory.getLogger("Polarium bench");
 	private static final ScheduledExecutorService TIMER = Executors.newSingleThreadScheduledExecutor(r -> {
 		Thread t = new Thread(r, "polarium-bench");
 		t.setDaemon(true);
@@ -136,8 +144,9 @@ public final class BlockEntityBench implements ClientModInitializer {
 		}
 		if (phase == 2) mc.level.destroyBlockProgress(4711, new BlockPos(-3, -59, 4), 6);
 		com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = false;
+        FRAME_TIMES.clear();
 		later(3, () -> screenshot(mc));
-		later(4, () -> com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = true);
+		later(4, () -> { com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing = true; FRAME_TIMES.clear(); });
 		later(7, () -> screenshot(mc));
 		if (phase < 2) later(9, () -> pair(phase + 1));
 		else later(10, mc::stop);
@@ -162,6 +171,13 @@ public final class BlockEntityBench implements ClientModInitializer {
 	}
 
 	private static void screenshot(Minecraft mc) {
+        if (!FRAME_TIMES.isEmpty()) {
+            long[] times = FRAME_TIMES.stream().mapToLong(Long::longValue).sorted().toArray();
+            LOG.info("blocks bench: {} frame CPU median={} ms p95={} ms ({} frames, software GL includes rendering and pacing)",
+                com.arcticlauncher.polarium.BlockEntityOptions.get().chestInstancing ? "GPU" : "vanilla",
+                times[times.length / 2] / 1e6, times[(times.length - 1) * 95 / 100] / 1e6, times.length);
+            FRAME_TIMES.clear();
+        }
 		//#if MC >= 26.2
 		Screenshot.grab(mc, false);
 		//#else
