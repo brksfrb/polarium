@@ -58,10 +58,12 @@ On 26.2/26.3 the instance and per-draw buffers are written while mapped
 (persistently where the driver can), each slot of a three-buffer ring fenced;
 a slot the GPU is still using gets a new buffer instead of a wait. There is no
 `glBufferSubData` on this path: a megabyte SubData into the instance buffer
-crashed Mesa's no-op driver, and an old AMD driver hung in SubData. A driver
-without persistent mapping (no GL 4.4 buffer storage) keeps chests on the
+crashed Mesa's no-op driver, and an old AMD driver hung in SubData. A driver without OpenGL 4.4 and without `GL_ARB_buffer_storage` keeps chests on the
 game's renderer, with one log line; `-Dpolarium.gpuChests.anyDriver=true`
-overrides that. 1.21.11/26.1.2 make new immutable buffers with their data.
+overrides that. The check reads LWJGL capabilities, not Mojang's
+`persistentMapping` flag (Sodium turns that off on NVIDIA). Allocation uses the
+ARB entry points when the core 4.4/4.5 functions are missing, so a GL 3.3 context
+that still exposes the extension (NVIDIA) stays on the GPU path. 1.21.11/26.1.2 make new immutable buffers with their data.
 
 Both paths step aside, with a log, for `betterblockentities`, Enhanced Block
 Entities, FastChest, Iris (even without an active shader pack), Oculus,

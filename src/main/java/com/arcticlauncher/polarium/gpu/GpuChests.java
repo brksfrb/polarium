@@ -153,20 +153,51 @@ public final class GpuChests implements ChestInstancing.World {
 		return !OFF && BlockEntityOptions.compatible() && !failed && !legacyDriver && config != null && config.chestInstancing;
 	}
 
-	/** The driver can't map buffers persistently (no GL 4.4 buffer storage): an old driver, left to the game's renderer. */
+	/** No GL 4.4 and no GL_ARB_buffer_storage: an old driver, left to the game's renderer. */
 	private boolean legacyDriver;
+	private boolean loggedMapping;
 
+	/**
+	 * Real capability, not {@code DeviceFeatures.persistentMapping()}. Minecraft 26.2 requests a
+	 * GL 3.3 context, and Sodium sets {@code GlDevice.USE_GL_ARB_buffer_storage} to false on every
+	 * NVIDIA device, so Mojang's flag stays off even when the driver exposes ARB_buffer_storage.
+	 */
 	private boolean driverSupported() {
 		if (Boolean.getBoolean("polarium.gpuChests.anyDriver")) {
 			return true;
 		}
+		String via = persistentStorage();
 		var info = RenderSystem.getDevice().getDeviceInfo();
-		if (info.features().persistentMapping()) {
+		if (via != null) {
+			if (!loggedMapping) {
+				loggedMapping = true;
+				LOG.info("Polarium: {} ({}) maps chest buffers persistently via {}", info.name(), info.driverInfo(), via);
+			}
 			return true;
 		}
 		legacyDriver = true;
 		LOG.info("Polarium: {} ({}) can't map buffers persistently; chests stay on the game's renderer", info.name(), info.driverInfo());
 		return false;
+	}
+
+	/** {@code OpenGL 4.4}, {@code GL_ARB_buffer_storage}, or null if this context has neither. */
+	private static String persistentStorage() {
+		org.lwjgl.opengl.GLCapabilities caps;
+		try {
+			caps = org.lwjgl.opengl.GL.getCapabilities();
+		} catch (IllegalStateException e) {
+			return null;
+		}
+		if (caps == null) {
+			return null;
+		}
+		if (caps.OpenGL44) {
+			return "OpenGL 4.4";
+		}
+		if (caps.GL_ARB_buffer_storage) {
+			return "GL_ARB_buffer_storage";
+		}
+		return null;
 	}
 
 	// ---- the frame ----
@@ -546,7 +577,7 @@ public final class GpuChests implements ChestInstancing.World {
 		pipeline = InstancedPipelines.twin(original, SHADER, FORMAT, LAYOUT);
 		chests.markAllDirty();
 		needUpload = true;
-		LOG.info("Polarium: chests are drawn on the GPU ({} + {} + {} vertices a model)", meshVertices[0], meshVertices[1], meshVertices[2]);
+		LOG.info("Polarium: chests are drawn on the GPU ({} + {} + {} vertices a model, {})", meshVertices[0], meshVertices[1], meshVertices[2], persistentStorage() != null ? persistentStorage() : "mapped buffers");
 	}
 
 	/** A chest model's faces, lid shut, in the block's space; each vertex says whether it moves with the lid. */
@@ -748,7 +779,67 @@ public final class GpuChests implements ChestInstancing.World {
 		if (buffer != null) {
 			buffer.close();
 		}
-		return device.createBuffer(() -> label, usage, Math.max(size + size / 2, 16 * 1024));
+		long bytes = Math.max(size + size / 2, 16 * 1024);
+		// When Mojang already allocated with glBufferStorage, its createBuffer is enough.
+		if (device.getDeviceInfo().features().persistentMapping()) {
+			return device.createBuffer(() -> label, usage, bytes);
+		}
+		// Sodium has turned that path off (NVIDIA): make the buffer ourselves with the ARB entry points.
+		return persistentBuffer(device, usage, bytes);
+	}
+
+	/**
+	 * A persistently-mapped buffer via ARB_buffer_storage / ARB_direct_state_access, not core GL 4.4/4.5,
+	 * so a 3.3 context that only exposes the extensions still works.
+	 */
+	private static GpuBuffer persistentBuffer(GpuDevice device, int usage, long size) {
+		try {
+			Object glDevice = backendOf(device);
+			Object dsa = glDevice.getClass().getMethod("directStateAccess").invoke(glDevice);
+			int handle = (Integer) dsa.getClass().getMethod("createBuffer").invoke(dsa);
+			// Core DSA uses glNamedBufferStorage (ARB_direct_state_access); the emulated path uses
+			// ARBBufferStorage.glBufferStorage. Neither goes through the core 4.4/4.5 names.
+			// 26.3 moved these classes under com.mojang.renderpearl.backend.opengl.
+			dsa.getClass().getMethod("bufferStorage", int.class, long.class, int.class).invoke(dsa, handle, size, usage);
+			Class<?> direct = optionalClass("com.mojang.blaze3d.opengl.GlBuffer$Direct",
+					"com.mojang.renderpearl.backend.opengl.GlBuffer$Direct");
+			for (var ctor : direct.getDeclaredConstructors()) {
+				ctor.setAccessible(true);
+				Class<?>[] parameters = ctor.getParameterTypes();
+				if (parameters.length == 5 && parameters[1] == int.class) {
+					return (GpuBuffer) ctor.newInstance(dsa, usage, size, handle, true);
+				}
+				if (parameters.length == 6 && parameters[2] == int.class) {
+					Object heuristics = glDevice.getClass().getMethod("heuristics").invoke(glDevice);
+					return (GpuBuffer) ctor.newInstance(heuristics, dsa, usage, size, handle, true);
+				}
+			}
+			throw new NoSuchMethodException("GlBuffer.Direct constructor");
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			throw new IllegalStateException("couldn't allocate a persistently mapped chest buffer", e);
+		}
+	}
+
+	private static Object backendOf(Object device) throws NoSuchFieldException, IllegalAccessException {
+		for (Class<?> type = device.getClass(); type != null; type = type.getSuperclass()) {
+			try {
+				var field = type.getDeclaredField("backend");
+				field.setAccessible(true);
+				return field.get(device);
+			} catch (NoSuchFieldException ignored) {
+			}
+		}
+		throw new NoSuchFieldException("backend");
+	}
+
+	private static Class<?> optionalClass(String... names) throws ClassNotFoundException {
+		for (String name : names) {
+			try {
+				return Class.forName(name);
+			} catch (ClassNotFoundException ignored) {
+			}
+		}
+		throw new ClassNotFoundException(String.join(" or ", names));
 	}
 }
 //#endif

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- GPU chests detect persistent mapping from LWJGL (`GL_ARB_buffer_storage` or
+  OpenGL 4.4), not Mojang's `persistentMapping` flag (Sodium turns that off on
+  every NVIDIA GPU, so a 3.3 context with the extension was falling back to vanilla).
+  Buffers are allocated with the ARB entry points when the core 4.4/4.5 ones are absent.
 - GPU chests (26.2/26.3) upload through mapped, fenced buffers instead of
   `glBufferSubData` (which crashed Mesa's no-op driver with ~70k chests and hung
   an old AMD driver), and stay on the game's renderer on drivers without
