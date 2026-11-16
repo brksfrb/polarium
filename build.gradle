@@ -259,7 +259,10 @@ if (project.hasProperty('blockEntityScene')) {
         if (project.hasProperty('blockEntityCompatOnly')) { vmArg '-Dpolarium.bench.compatOnly=true' }
         vmArg '-Dpolarium.gpuChests.report=true'
         vmArg '-Dpolarium.gpuSpriteModels.report=true'
-        if (project.hasProperty('spriteFailureTest')) { vmArg '-Dpolarium.gpuSpriteModels.failDraw=true' }
+        if (project.hasProperty('spriteFailureTest')) {
+            vmArg '-Dpolarium.gpuSpriteModels.failDraw=true'
+            if (project.hasProperty('spriteScene')) { vmArg '-Dpolarium.gpuSpriteModels.failMin=128' }
+        }
         if (project.hasProperty('chestChristmasTest')) { vmArg '-Dpolarium.bench.christmas=true' }
         if (project.hasProperty('chestFailureTest')) { vmArg '-Dpolarium.gpuChests.failDraw=true' }
         runDir "run/block-entities-${mc}"

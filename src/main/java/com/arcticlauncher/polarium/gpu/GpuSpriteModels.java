@@ -25,6 +25,7 @@ public final class GpuSpriteModels {
     private static boolean recovering;
     private static boolean worldFrame;
     private static final boolean FAIL_DRAW = Boolean.getBoolean("polarium.gpuSpriteModels.failDraw");
+    private static final int FAIL_MIN = Integer.getInteger("polarium.gpuSpriteModels.failMin", 1);
     private static final boolean REPORT = Boolean.getBoolean("polarium.gpuSpriteModels.report");
     private static final java.util.Set<String> reported = new java.util.HashSet<>();
 
@@ -75,8 +76,8 @@ public final class GpuSpriteModels {
     static void captured(ModelFeatureRenderer.Submit<?> submit) { captured.add(submit); }
 
     static void checkDraw() {
-        if (!captured.isEmpty() && FAIL_DRAW) {
-            throw new IllegalStateException("Polarium sprite model injected draw failure");
+        if (!captured.isEmpty() && FAIL_DRAW && captured.size() >= FAIL_MIN) {
+            throw new IllegalStateException("Polarium sprite model injected draw failure (" + captured.size() + " retained)");
         }
     }
 

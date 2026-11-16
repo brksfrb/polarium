@@ -1,4 +1,4 @@
-# Performance round 2 — 2026-11-15
+# Performance round 2 — 2026-11-15/16 UTC
 
 Branch `perf/round2` starts at `origin/main` (`22b049e`). Two prerequisite
 commits from `perf/block-entities` supply the chest instancer, its same-frame
@@ -158,3 +158,8 @@ bounds before locating superclasses; the previous false positives for
 hook changes. New sprite capture is scoped to the world's render frame;
 special item previews in menus retain vanilla rendering and cannot leave
 recovery submissions for a later world frame.
+
+The final complete-scene fault checks wait until 128 model submissions have
+been captured, then inject the failure at draw. Both 26.2 and 26.3 retained
+128 and recovered 128 in that frame. This avoids firing the test while only
+a partial set of chunks has arrived; ordinary failures remain immediate.
