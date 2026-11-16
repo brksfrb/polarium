@@ -1,6 +1,5 @@
 package com.arcticlauncher.polarium;
 
-import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.LoggerFactory;
 
 /** Same JVM-property options as Polarium's entity path. Read once at startup. */
@@ -47,12 +46,10 @@ public final class BlockEntityOptions {
                 net.minecraft.client.renderer.blockentity.DecoratedPotRenderer.class};
     }
     private static boolean check() {
-        for (String id : new String[] {"betterblockentities", "enhancedblockentities", "fastchest", "iris", "oculus",
-                "optifabric", "immersive_portals", "imm_ptl_core", "entity_model_features", "entity_texture_features", "canvas", "vulkanmod"}) {
-            if (FabricLoader.getInstance().isModLoaded(id)) {
-                LoggerFactory.getLogger("Polarium").info("Polarium: {} loaded; block entities stay on vanilla rendering", id);
-                return false;
-            }
+        String owner = BlockEntityMods.replacing();
+        if (owner != null) {
+            LoggerFactory.getLogger("Polarium").info("Polarium: {} loaded; block entities stay on vanilla rendering", owner);
+            return false;
         }
         for (Class<?> target : Renderers.TYPES) {
             var mixins = MixinsOn.of(target.getName());
@@ -64,7 +61,9 @@ public final class BlockEntityOptions {
                 String name = mixin.getClassName();
                 if (!name.startsWith("com.arcticlauncher.polarium.") && !MixinsOn.mod(mixin).equals("sodium")
                         // Fabric registers reload listeners here; it does not replace rendering.
-                        && !MixinsOn.mod(mixin).equals("fabric-resource-loader-v1")) {
+                        && !MixinsOn.mod(mixin).equals("fabric-resource-loader-v1")
+                        // Only leaves some out (EntityCulling) or caches the lookup (BadOptimizations).
+                        && !BlockEntityMods.drawsAsBefore(MixinsOn.mod(mixin))) {
                     LoggerFactory.getLogger("Polarium").info("Polarium: {} changes {}; block entity path disabled",
                             MixinsOn.mod(mixin), target.getName());
                     return false;

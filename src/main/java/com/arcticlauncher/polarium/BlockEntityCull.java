@@ -79,6 +79,8 @@ public final class BlockEntityCull {
 	//#endif
 
 	private static final FrustumView VIEW = new FrustumView();
+	/** Another mod (EntityCulling) already tests each one against the view: not tested twice. */
+	private static final boolean CULLED_ELSEWHERE = BlockEntityMods.culledElsewhere();
 
 	private BlockEntityCull() {}
 
@@ -96,7 +98,7 @@ public final class BlockEntityCull {
 	/** Should this block entity be left out of the world this frame? */
 	public static boolean skip(BlockEntity entity) {
 		BlockEntityOptions config = BlockEntityOptions.get();
-		if (entity == null || !BlockEntityOptions.compatible() || !BlockEntityCulling.active(config) || !known(entity)) {
+		if (entity == null || CULLED_ELSEWHERE || !BlockEntityOptions.compatible() || !BlockEntityCulling.active(config) || !known(entity)) {
 			return false;
 		}
 		//#if MC >= 1.15

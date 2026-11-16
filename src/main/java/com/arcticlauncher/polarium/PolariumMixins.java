@@ -32,7 +32,45 @@ public final class PolariumMixins implements IMixinConfigPlugin {
 			// Only for the crowd bench's players (they have no player list entry to get a skin from).
 			return "players".equals(System.getProperty("polarium.bench.kind"));
 		}
+		String name = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
+		if (name.equals("BlockEntityBenchFrameMixin") || name.equals("ChestChristmasBenchMixin")) {
+			// Only for the block entity scene: nothing per frame otherwise.
+			return !OFF && "blocks".equals(System.getProperty("polarium.bench"));
+		}
+		if (BLOCK_ENTITY_MIXINS.contains(name)) {
+			return !OFF && blockEntities(name);
+		}
 		return !OFF;
+	}
+
+	/** Every mixin of the block entity path (culling and GPU chests). */
+	private static final Set<String> BLOCK_ENTITY_MIXINS = Set.of("BlockEntityCullMixin", "BlockEntityCullLevelMixin",
+			"BlockEntityFrustumMixin", "GpuChestDrawMixin", "GpuChestRecoveryMixin", "GpuChestPassMixin", "GpuChestDirtyMixin",
+			"GpuChestSlotMixin", "GpuChestLidMixin", "GpuChestLightMixin", "ChestRenderTypeAccess", "ChestRenderSetupAccess",
+			"OlderChestSubmitMixin");
+	private static boolean loggedAside;
+
+	private static boolean blockEntities(String mixin) {
+		boolean culling = !"false".equals(System.getProperty("polarium.blockEntityCulling"));
+		boolean chests = !"false".equals(System.getProperty("polarium.gpuChests"));
+		String owner = BlockEntityMods.replacing();
+		if (owner != null) {
+			// That mod draws block entities its own way: not a single hook of ours in its path.
+			if (!loggedAside) {
+				loggedAside = true;
+				org.slf4j.LoggerFactory.getLogger("Polarium").info(
+						"Polarium: {} handles block entities; Polarium's block entity culling and GPU chests are left out", owner);
+			}
+			return false;
+		}
+		if (mixin.equals("BlockEntityFrustumMixin")) {
+			// The view is only needed for Polarium's own culling.
+			return culling && !BlockEntityMods.culledElsewhere();
+		}
+		if (mixin.equals("BlockEntityCullMixin") || mixin.equals("BlockEntityCullLevelMixin")) {
+			return culling || chests;
+		}
+		return chests;
 	}
 
 	@Override

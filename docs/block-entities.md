@@ -56,9 +56,14 @@ surfaces overlap recovered chests, but the chests are drawn in that frame.
 
 Both paths step aside, with a log, for `betterblockentities`, Enhanced Block
 Entities, FastChest, Iris (even without an active shader pack), Oculus,
-OptiFabric, Immersive Portals, EMF/ETF, Canvas and VulkanMod. Other mods' mixins
-on the dispatcher or supported renderers also disable the path conservatively;
-Sodium and Fabric's resource-reload registration are allowed. A replacement
+OptiFabric, Immersive Portals, EMF/ETF, Canvas and VulkanMod. With one of these
+loaded, the block entity mixins are not applied at all (`PolariumMixins`), so
+Polarium adds nothing to that mod's block entity path. Other mods' mixins on the
+dispatcher or supported renderers also disable the path conservatively; Sodium,
+Fabric's resource-reload registration, EntityCulling (it only leaves block
+entities out) and BadOptimizations (it caches the renderer lookup) are allowed.
+With EntityCulling loaded, Polarium's own frustum culling and its frustum hook
+are left out, since EntityCulling already tests each block entity. A replacement
 renderer discovered on a supported block entity also disables the path.
 This is deliberately conservative: unknown renderer changes can expand bounds
 or change geometry. Minecraft 26.3's built-in Vulkan backend is supported;

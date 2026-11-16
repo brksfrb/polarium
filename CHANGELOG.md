@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Block entity path: with BBE or another mod that draws block entities itself,
+  none of its mixins are applied. EntityCulling and BadOptimizations (both in
+  Arctic's performance set) no longer switch GPU chests off; with EntityCulling,
+  Polarium does not cull a second time. The block entity scene's frame-timing and
+  Christmas mixins load only for that scene.
+- Restore the GPU batch report hotpath fix (report counting only when a debug
+  report is due).
 - GPU-instanced single/double, trapped, ender and copper chests on Minecraft
   1.21.11 and 26.1.2, using vanilla atlas/model/shader resources and bounded
   uniform batches. Vanilla states remain available until the draw succeeds.
