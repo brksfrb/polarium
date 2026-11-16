@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- GPU chests (26.2/26.3) upload through mapped, fenced buffers instead of
+  `glBufferSubData` (which crashed Mesa's no-op driver with ~70k chests and hung
+  an old AMD driver), and stay on the game's renderer on drivers without
+  persistent buffer mapping. On with Arctic's performance mods.
 - Block entity path: with BBE or another mod that draws block entities itself,
   none of its mixins are applied. EntityCulling and BadOptimizations (both in
   Arctic's performance set) no longer switch GPU chests off; with EntityCulling,

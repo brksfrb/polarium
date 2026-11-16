@@ -54,6 +54,15 @@ Recovery on the newer targets runs after the normal transparent passes; the
 exceptional frame can therefore have different blending where transparent
 surfaces overlap recovered chests, but the chests are drawn in that frame.
 
+On 26.2/26.3 the instance and per-draw buffers are written while mapped
+(persistently where the driver can), each slot of a three-buffer ring fenced;
+a slot the GPU is still using gets a new buffer instead of a wait. There is no
+`glBufferSubData` on this path: a megabyte SubData into the instance buffer
+crashed Mesa's no-op driver, and an old AMD driver hung in SubData. A driver
+without persistent mapping (no GL 4.4 buffer storage) keeps chests on the
+game's renderer, with one log line; `-Dpolarium.gpuChests.anyDriver=true`
+overrides that. 1.21.11/26.1.2 make new immutable buffers with their data.
+
 Both paths step aside, with a log, for `betterblockentities`, Enhanced Block
 Entities, FastChest, Iris (even without an active shader pack), Oculus,
 OptiFabric, Immersive Portals, EMF/ETF, Canvas and VulkanMod. With one of these

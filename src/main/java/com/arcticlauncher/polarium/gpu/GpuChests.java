@@ -9,6 +9,7 @@ import com.arcticlauncher.polarium.ChestInstancing;
 import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.BindGroupLayout;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -142,7 +143,6 @@ public final class GpuChests implements ChestInstancing.World {
 	private final FrameFences drawFences = new FrameFences(RING);
 	/** The frame's instances aren't on the GPU yet. */
 	private boolean needUpload = true;
-	private ByteBuffer scratch;
 	private long lastReport;
 
 
@@ -150,7 +150,23 @@ public final class GpuChests implements ChestInstancing.World {
 
 	private boolean on() {
 		BlockEntityOptions config = BlockEntityOptions.get();
-		return !OFF && BlockEntityOptions.compatible() && !failed && config != null && config.chestInstancing;
+		return !OFF && BlockEntityOptions.compatible() && !failed && !legacyDriver && config != null && config.chestInstancing;
+	}
+
+	/** The driver can't map buffers persistently (no GL 4.4 buffer storage): an old driver, left to the game's renderer. */
+	private boolean legacyDriver;
+
+	private boolean driverSupported() {
+		if (Boolean.getBoolean("polarium.gpuChests.anyDriver")) {
+			return true;
+		}
+		var info = RenderSystem.getDevice().getDeviceInfo();
+		if (info.features().persistentMapping()) {
+			return true;
+		}
+		legacyDriver = true;
+		LOG.info("Polarium: {} ({}) can't map buffers persistently; chests stay on the game's renderer", info.name(), info.driverInfo());
+		return false;
 	}
 
 	// ---- the frame ----
@@ -158,6 +174,7 @@ public final class GpuChests implements ChestInstancing.World {
 	/** The world's extraction starts. */
 	public static void begin() {
 		GpuChests g = INSTANCE;
+		g.fenceLastFrame();
 		g.captured.clear();
         g.recoverFrame = false;
         g.inFrame = false;
@@ -173,6 +190,9 @@ public final class GpuChests implements ChestInstancing.World {
 			return;
 		}
 		try {
+			if (!g.ready && !g.driverSupported()) {
+				return;
+			}
 			g.prepare(minecraft);
 			g.inFrame = true;
 		} catch (RuntimeException | LinkageError | ReflectiveOperationException e) {
@@ -581,7 +601,28 @@ public final class GpuChests implements ChestInstancing.World {
 
 	private PreparedRenderType prepared;
 	private int alignment;
+	/** The ring slots last frame's draws read, still to be fenced (-1: none). */
+	private int drewInstances = -1;
+	private int drewDraws = -1;
 
+	/** Fences what last frame drew from, now that its passes are closed and sent. */
+	private void fenceLastFrame() {
+		if (drewInstances >= 0) {
+			instanceFences.mark(drewInstances);
+			drewInstances = -1;
+		}
+		if (drewDraws >= 0) {
+			drawFences.mark(drewDraws);
+			drewDraws = -1;
+		}
+	}
+
+	/**
+	 * The frame's instances and per-draw data into buffers written while mapped (persistently where the
+	 * driver can), never with glBufferSubData: a big SubData into a buffer the GPU may still read crashed
+	 * Mesa's no-op driver and hung an old AMD driver. Each slot of the ring is fenced; a slot the GPU
+	 * isn't done with gets a fresh buffer instead of a wait.
+	 */
 	private void uploadFrame() {
 		ChestInstancing.Frame f = frame;
 		if (f == null || f.total() == 0 || !ready) {
@@ -591,40 +632,38 @@ public final class GpuChests implements ChestInstancing.World {
 		if (needUpload || instanceBuffers[instanceSlot] == null) {
 			// A buffer the GPU may still be drawing last frame from is left alone: the next one in the ring is written.
 			instanceSlot = (instanceSlot + 1) % RING;
-			if (!instanceFences.await(instanceSlot) && instanceBuffers[instanceSlot] != null) {
-				instanceBuffers[instanceSlot].close(); instanceBuffers[instanceSlot] = null;
+			if (!instanceFences.await(instanceSlot)) {
+				instanceBuffers[instanceSlot] = GpuBatches.closed(instanceBuffers[instanceSlot]);
 			}
 			long bytes = (long) f.floats * 4;
 			instanceBuffers[instanceSlot] = ensure(device, instanceBuffers[instanceSlot], bytes,
-					GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER | GpuBuffer.USAGE_COPY_DST, "Polarium chest instances");
-			ByteBuffer bytesOut = scratch((int) bytes);
-			bytesOut.asFloatBuffer().put(f.data, 0, f.floats);
-			bytesOut.limit((int) bytes);
-			device.createCommandEncoder().writeToBuffer(instanceBuffers[instanceSlot].slice(0, bytes), bytesOut);
+					GpuBuffer.USAGE_UNIFORM_TEXEL_BUFFER | GpuBuffer.USAGE_MAP_WRITE, "Polarium chest instances");
+			try (GpuBufferSlice.MappedView view = instanceBuffers[instanceSlot].slice(0, bytes).map(false, true)) {
+				view.data().order(ByteOrder.nativeOrder()).asFloatBuffer().put(0, f.data, 0, f.floats);
+			}
 			needUpload = false;
 		}
-		GpuBuffer instances = instanceBuffers[instanceSlot];
 
 		alignment = Math.max(DRAW_BYTES, device.getDeviceInfo().limits().minUniformOffsetAlignment());
 		alignment = (alignment + 15) / 16 * 16;
 		int drawBytes = alignment * ChestInstancing.KINDS;
 		drawSlot = (drawSlot + 1) % RING;
-		if (!drawFences.await(drawSlot) && drawBuffers[drawSlot] != null) {
-			drawBuffers[drawSlot].close(); drawBuffers[drawSlot] = null;
+		if (!drawFences.await(drawSlot)) {
+			drawBuffers[drawSlot] = GpuBatches.closed(drawBuffers[drawSlot]);
 		}
-		drawBuffers[drawSlot] = ensure(device, drawBuffers[drawSlot], drawBytes, GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST,
+		drawBuffers[drawSlot] = ensure(device, drawBuffers[drawSlot], drawBytes, GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_MAP_WRITE,
 				"Polarium chest draws");
-		ByteBuffer draw = scratch(drawBytes);
 		float distance = BlockEntityCulling.distance(BlockEntityOptions.get());
-		for (int kind = 0; kind < ChestInstancing.KINDS; kind++) {
-			int at = kind * alignment;
-			draw.putInt(at, f.first[kind]).putInt(at + 4, 0).putInt(at + 8, 0).putInt(at + 12, 0);
-			draw.putFloat(at + 16, f.originX).putFloat(at + 20, f.originY).putFloat(at + 24, f.originZ).putFloat(at + 28, distance * distance);
-			draw.putFloat(at + 32, f.fracX).putFloat(at + 36, f.fracY).putFloat(at + 40, f.fracZ).putFloat(at + 44, 0f);
-			draw.putFloat(at + 48, hinge.x).putFloat(at + 52, hinge.y).putFloat(at + 56, hinge.z).putFloat(at + 60, 0f);
+		try (GpuBufferSlice.MappedView view = drawBuffers[drawSlot].slice(0, drawBytes).map(false, true)) {
+			ByteBuffer draw = view.data().order(ByteOrder.nativeOrder());
+			for (int kind = 0; kind < ChestInstancing.KINDS; kind++) {
+				int at = kind * alignment;
+				draw.putInt(at, f.first[kind]).putInt(at + 4, 0).putInt(at + 8, 0).putInt(at + 12, 0);
+				draw.putFloat(at + 16, f.originX).putFloat(at + 20, f.originY).putFloat(at + 24, f.originZ).putFloat(at + 28, distance * distance);
+				draw.putFloat(at + 32, f.fracX).putFloat(at + 36, f.fracY).putFloat(at + 40, f.fracZ).putFloat(at + 44, 0f);
+				draw.putFloat(at + 48, hinge.x).putFloat(at + 52, hinge.y).putFloat(at + 56, hinge.z).putFloat(at + 60, 0f);
+			}
 		}
-		draw.limit(drawBytes);
-		device.createCommandEncoder().writeToBuffer(drawBuffers[drawSlot].slice(0, drawBytes), draw);
 
 		prepared = renderType.prepare();
 		RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS).getBuffer(108);
@@ -685,8 +724,9 @@ public final class GpuChests implements ChestInstancing.World {
 		//#if MC < 26.3
 		}
 		//#endif
-		instanceFences.mark(instanceSlot);
-		drawFences.mark(drawSlot);
+		// Fenced at the next frame's start: on 26.3 this runs inside the game's render pass, where no fence can be made.
+		drewInstances = instanceSlot;
+		drewDraws = drawSlot;
 		report(f, draws);
 	}
 
@@ -699,17 +739,6 @@ public final class GpuChests implements ChestInstancing.World {
 					f.total(), draws, chests.size(), chests.sectionCount(), chests.uploads, chests.bakes);
 			chests.resetCounters();
 		}
-	}
-
-	private ByteBuffer scratch(int bytes) {
-		if (scratch == null || scratch.capacity() < bytes) {
-			if (scratch != null) {
-				MemoryUtil.memFree(scratch);
-			}
-			scratch = MemoryUtil.memAlloc(bytes + bytes / 2).order(ByteOrder.nativeOrder());
-		}
-		scratch.clear();
-		return scratch;
 	}
 
 	private static GpuBuffer ensure(GpuDevice device, GpuBuffer buffer, long size, int usage, String label) {
