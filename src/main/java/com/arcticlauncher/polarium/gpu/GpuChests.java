@@ -10,6 +10,9 @@ import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.opengl.DirectStateAccess;
+import com.arcticlauncher.polarium.mixin.GlDeviceAccess;
+import com.arcticlauncher.polarium.mixin.GpuDeviceAccess;
 import com.mojang.blaze3d.pipeline.BindGroupLayout;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -144,6 +147,14 @@ public final class GpuChests implements ChestInstancing.World {
 	/** The frame's instances aren't on the GPU yet. */
 	private boolean needUpload = true;
 	private long lastReport;
+	/** How the chest buffers are uploaded (for F3 and the log); null until the first one is made. */
+	private String upload;
+	/** Why a persistently mapped buffer couldn't be made; buffers are then mapped each frame. */
+	private String storageFailure;
+	/** Why the path went back to the game's renderer, or null. */
+	private String failure;
+	/** Chests this path drew in the current frame. */
+	private int drawn;
 
 
 	private GpuChests() {}
@@ -206,6 +217,7 @@ public final class GpuChests implements ChestInstancing.World {
 	public static void begin() {
 		GpuChests g = INSTANCE;
 		g.fenceLastFrame();
+		g.drawn = 0;
 		g.captured.clear();
         g.recoverFrame = false;
         g.inFrame = false;
@@ -321,6 +333,8 @@ public final class GpuChests implements ChestInstancing.World {
         recoverFrame = !captured.isEmpty();
 		if (!failed) {
 			failed = true;
+			String why = String.valueOf(e);
+			failure = what + ": " + (why.length() > 160 ? why.substring(0, 160) + "..." : why);
 			LOG.error("Polarium: {} chests on the GPU; they are drawn the game's way from now on", what, e);
 		}
 		inFrame = false;
@@ -758,7 +772,30 @@ public final class GpuChests implements ChestInstancing.World {
 		// Fenced at the next frame's start: on 26.3 this runs inside the game's render pass, where no fence can be made.
 		drewInstances = instanceSlot;
 		drewDraws = drawSlot;
+		drawn = f.total();
 		report(f, draws);
+	}
+
+	/**
+	 * Polarium's F3 line for chests: whether this path is on, how its buffers reach the GPU (or why it
+	 * is off), and how many chests it drew this frame.
+	 */
+	public static String debugLine() {
+		GpuChests g = INSTANCE;
+		BlockEntityOptions config = BlockEntityOptions.get();
+		String off = g.failed ? "vanilla fallback, " + g.failure
+				: OFF ? "-Dpolarium.gpuChests=false"
+				: config == null || !config.chestInstancing ? "option off"
+				: !BlockEntityOptions.compatible() ? "another mod draws block entities (see log)"
+				: g.legacyDriver ? "driver has no GL 4.4 or GL_ARB_buffer_storage"
+				: null;
+		if (off != null) {
+			return "Polarium chests: OFF (" + off + ")";
+		}
+		if (!g.ready) {
+			return "Polarium chests: ON (no chests yet)";
+		}
+		return "Polarium chests: ON, " + g.drawn + " drawn (" + (g.upload != null ? g.upload : "no buffers yet") + ")";
 	}
 
 	/** Every ten seconds with -Dpolarium.gpuChests.report=true: how many chests took how many draws. */
@@ -772,7 +809,13 @@ public final class GpuChests implements ChestInstancing.World {
 		}
 	}
 
-	private static GpuBuffer ensure(GpuDevice device, GpuBuffer buffer, long size, int usage, String label) {
+	/**
+	 * A buffer for the frame's chest data, from the fastest upload this driver allows, stepping down
+	 * instead of giving up: Mojang's persistently mapped buffer; else (Sodium turns Mojang's mapping
+	 * off on NVIDIA) one made here with GL_ARB_buffer_storage and mapped persistently; else, if that
+	 * can't be made, the game's plain buffer, mapped each frame. All three stay instanced.
+	 */
+	private GpuBuffer ensure(GpuDevice device, GpuBuffer buffer, long size, int usage, String label) {
 		if (buffer != null && !buffer.isClosed() && buffer.size() >= size) {
 			return buffer;
 		}
@@ -780,66 +823,68 @@ public final class GpuChests implements ChestInstancing.World {
 			buffer.close();
 		}
 		long bytes = Math.max(size + size / 2, 16 * 1024);
-		// When Mojang already allocated with glBufferStorage, its createBuffer is enough.
 		if (device.getDeviceInfo().features().persistentMapping()) {
+			upload("Mojang's persistent mapping");
 			return device.createBuffer(() -> label, usage, bytes);
 		}
-		// Sodium has turned that path off (NVIDIA): make the buffer ourselves with the ARB entry points.
-		return persistentBuffer(device, usage, bytes);
+		String via = persistentStorage();
+		if (storageFailure == null && via != null && !Boolean.getBoolean("polarium.gpuChests.noStorage")) {
+			try {
+				GpuBuffer made = persistentBuffer(device, usage, bytes);
+				// A driver that refused the storage or the mapping leaves no pointer: found here, not mid-frame.
+				boolean mapped;
+				try (GpuBufferSlice.MappedView view = made.slice(0, 16).map(false, true)) {
+					mapped = view.data() != null && view.data().capacity() >= 16;
+				}
+				if (!mapped) {
+					made.close();
+					throw new IllegalStateException("the persistent mapping has no memory");
+				}
+				upload(via + ", Mojang's mapping off");
+				return made;
+			} catch (RuntimeException | LinkageError e) {
+				storageFailure = String.valueOf(e);
+				LOG.warn("Polarium: couldn't make a persistently mapped chest buffer; chests stay on the GPU through buffers mapped each frame", e);
+			}
+		}
+		upload("mapped each frame" + (storageFailure != null ? " (persistent failed: " + storageFailure + ")"
+				: via == null ? " (no buffer storage)" : " (-Dpolarium.gpuChests.noStorage)"));
+		return device.createBuffer(() -> label, usage, bytes);
+	}
+
+	private void upload(String how) {
+		if (!how.equals(upload)) {
+			upload = how;
+			LOG.info("Polarium: chest buffers are uploaded via {}", how);
+		}
 	}
 
 	/**
 	 * A persistently-mapped buffer via ARB_buffer_storage / ARB_direct_state_access, not core GL 4.4/4.5,
-	 * so a 3.3 context that only exposes the extensions still works.
+	 * so a 3.3 context that only exposes the extensions still works. GlDevice and DirectStateAccess$Core
+	 * are package-private: they are reached through a mixin accessor and the public DirectStateAccess
+	 * type, and the buffer is the game's GlBuffer.Direct through a subclass, with no reflection.
 	 */
 	private static GpuBuffer persistentBuffer(GpuDevice device, int usage, long size) {
+		Object backend = ((GpuDeviceAccess) (Object) device).polarium$backend();
+		if (!(backend instanceof GlDeviceAccess gl)) {
+			throw new IllegalStateException("not the OpenGL backend: " + (backend == null ? null : backend.getClass().getName()));
+		}
+		DirectStateAccess dsa = gl.polarium$directStateAccess();
+		int handle = dsa.createBuffer();
 		try {
-			Object glDevice = backendOf(device);
-			Object dsa = glDevice.getClass().getMethod("directStateAccess").invoke(glDevice);
-			int handle = (Integer) dsa.getClass().getMethod("createBuffer").invoke(dsa);
 			// Core DSA uses glNamedBufferStorage (ARB_direct_state_access); the emulated path uses
 			// ARBBufferStorage.glBufferStorage. Neither goes through the core 4.4/4.5 names.
-			// 26.3 moved these classes under com.mojang.renderpearl.backend.opengl.
-			dsa.getClass().getMethod("bufferStorage", int.class, long.class, int.class).invoke(dsa, handle, size, usage);
-			Class<?> direct = optionalClass("com.mojang.blaze3d.opengl.GlBuffer$Direct",
-					"com.mojang.renderpearl.backend.opengl.GlBuffer$Direct");
-			for (var ctor : direct.getDeclaredConstructors()) {
-				ctor.setAccessible(true);
-				Class<?>[] parameters = ctor.getParameterTypes();
-				if (parameters.length == 5 && parameters[1] == int.class) {
-					return (GpuBuffer) ctor.newInstance(dsa, usage, size, handle, true);
-				}
-				if (parameters.length == 6 && parameters[2] == int.class) {
-					Object heuristics = glDevice.getClass().getMethod("heuristics").invoke(glDevice);
-					return (GpuBuffer) ctor.newInstance(heuristics, dsa, usage, size, handle, true);
-				}
-			}
-			throw new NoSuchMethodException("GlBuffer.Direct constructor");
-		} catch (ReflectiveOperationException | RuntimeException e) {
-			throw new IllegalStateException("couldn't allocate a persistently mapped chest buffer", e);
+			dsa.bufferStorage(handle, size, usage);
+			//#if MC >= 26.3
+			return new ChestStorageBuffer(gl.polarium$heuristics(), dsa, usage, size, handle);
+			//#else
+			return new ChestStorageBuffer(dsa, usage, size, handle);
+			//#endif
+		} catch (RuntimeException | LinkageError e) {
+			org.lwjgl.opengl.GL15.glDeleteBuffers(handle);
+			throw e;
 		}
-	}
-
-	private static Object backendOf(Object device) throws NoSuchFieldException, IllegalAccessException {
-		for (Class<?> type = device.getClass(); type != null; type = type.getSuperclass()) {
-			try {
-				var field = type.getDeclaredField("backend");
-				field.setAccessible(true);
-				return field.get(device);
-			} catch (NoSuchFieldException ignored) {
-			}
-		}
-		throw new NoSuchFieldException("backend");
-	}
-
-	private static Class<?> optionalClass(String... names) throws ClassNotFoundException {
-		for (String name : names) {
-			try {
-				return Class.forName(name);
-			} catch (ClassNotFoundException ignored) {
-			}
-		}
-		throw new ClassNotFoundException(String.join(" or ", names));
 	}
 }
 //#endif
