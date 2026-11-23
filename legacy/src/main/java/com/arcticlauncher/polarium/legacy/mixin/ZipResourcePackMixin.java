@@ -78,10 +78,11 @@ abstract class ZipResourcePackMixin extends AbstractFileResourcePack {
 
 	@Unique
 	private static boolean polarium$isSameFile(BasicFileAttributes oldFile, BasicFileAttributes currentFile) {
-		// Without a file key, an equal size and timestamp cannot rule out replacement.
-		return oldFile != null && currentFile != null && oldFile.fileKey() != null
+		// Some file systems do not supply a key. Compare the available metadata in that case.
+		return oldFile != null && currentFile != null
 				&& Objects.equals(oldFile.fileKey(), currentFile.fileKey())
 				&& oldFile.size() == currentFile.size()
+				&& oldFile.creationTime().equals(currentFile.creationTime())
 				&& oldFile.lastModifiedTime().equals(currentFile.lastModifiedTime());
 	}
 
