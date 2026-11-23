@@ -22,13 +22,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 JAVAP = os.path.join(os.environ.get("JAVA_HOME", ""), "bin", "javap")
 LOOM = os.path.expanduser("~/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft")
-# Methods a mixin target inherits from classes it doesn't declare; javap -p on
-# the target alone can't see them, so only these are looked up the hierarchy.
+# javap only lists declared members. Bound the search for inherited members.
 MAX_SUPERS = 6
 
 
 def jar_for(version):
     found = glob.glob(f"{LOOM}/minecraft-merged-deobf/{version}/*.jar") + glob.glob(f"{LOOM}/minecraft-merged/{version}-loom*/*.jar")
+    found += glob.glob(f"{LOOM}/minecraft-merged-legacy-intermediary-1-v2/{version}-*/*.jar")
     found = [j for j in found if not j.endswith("-sources.jar")]
     return found[0] if found else None
 
@@ -46,15 +46,30 @@ class Jar:
         return self.members_cache[cls]
 
     def hierarchy(self, cls):
-        """The class and its superclasses (as far as the jar knows them)."""
-        chain = [cls]
+        """The class and the superclasses and interfaces visible in the game jar."""
+        yield cls
+        seen = {cls}
+        frontier = [cls]
         for _ in range(MAX_SUPERS):
-            head = self.members(chain[-1]).split("{", 1)[0]
-            m = re.search(r"\bextends ([\w.$]+)", head)
-            if not m or not m.group(1).startswith(("net.minecraft", "com.mojang")):
+            parents = []
+            for child in frontier:
+                header = self.members(child).split("{", 1)[0]
+                # Type-parameter bounds also use "extends" in javap's output.
+                while True:
+                    erased = re.sub(r"<[^<>]*>", "", header)
+                    if erased == header:
+                        break
+                    header = erased
+                for clause in re.findall(r"\b(?:extends|implements) ([\w.$]+(?:,\s*[\w.$]+)*)", header):
+                    for parent in clause.strip().split(","):
+                        parent = parent.strip()
+                        if parent.startswith(("net.minecraft.", "com.mojang.")) and parent not in seen:
+                            seen.add(parent)
+                            parents.append(parent)
+                            yield parent
+            if not parents:
                 break
-            chain.append(m.group(1))
-        return chain
+            frontier = parents
 
     def has_member(self, cls, name):
         if name == "<init>":
@@ -73,22 +88,36 @@ class Jar:
 
 def active_mixins(version):
     """Mixin names this version's expanded config lists, or None when unknown."""
-    path = os.path.join(HERE, "build", "resources", "main", "polarium.mixins.json")
-    pre = os.path.join(HERE, "build", "preprocessed", version)
+    build = build_dir(version)
+    legacy = os.path.basename(os.path.dirname(build)) == "legacy"
+    config = "polarium-legacy.mixins.json" if legacy else "polarium.mixins.json"
+    path = os.path.join(build, "resources", "main", config)
+    pre = os.path.join(build, "preprocessed", version)
     if not os.path.isfile(path) or not os.path.isdir(pre):
         return None
     if os.path.getmtime(path) < os.path.getmtime(pre):
         # The expanded config is from another version's build.
         return None
     try:
-        return set(json.load(open(path, encoding="utf-8")).get("client", []))
+        with open(path, encoding="utf-8") as config_file:
+            config = json.load(config_file)
+        return set(config.get("client", []) + config.get("mixins", []))
     except ValueError:
         return None
 
 
+def build_dir(version):
+    legacy = glob.glob(f"{LOOM}/minecraft-merged-legacy-intermediary-1-v2/{version}-*/*.jar")
+    return os.path.join(HERE, "legacy", "build") if legacy else os.path.join(HERE, "build")
+
+
 def check(version):
     jar_path = jar_for(version)
-    src_dir = os.path.join(HERE, "build", "preprocessed", version, "java", "com", "arcticlauncher", "polarium", "mixin")
+    build = build_dir(version)
+    package = ["com", "arcticlauncher", "polarium"]
+    if os.path.basename(os.path.dirname(build)) == "legacy":
+        package.append("legacy")
+    src_dir = os.path.join(build, "preprocessed", version, "java", *package, "mixin")
     if not jar_path or not os.path.isdir(src_dir):
         print(f"{version}: compile it first (no named jar or preprocessed sources)")
         return 1
@@ -99,13 +128,14 @@ def check(version):
         f = os.path.basename(path)
         src = open(path, encoding="utf-8").read()
         m = re.search(r"@Mixin\(([\w.]+)\.class\)", src)
-        if not m:
+        target_name = re.search(r'@Mixin\(targets\s*=\s*"([\w.$]+)"\)', src)
+        if not m and not target_name:
             continue
         if listed is not None and f[:-5] not in listed:
             continue
         imports = dict((i.group(2), i.group(1) + "." + i.group(2))
                        for i in re.finditer(r"import ((?:net\.minecraft|com\.mojang)[\w.]*)\.(\w+);", src))
-        target = m.group(1)
+        target = (m or target_name).group(1)
         cls = imports.get(target.split(".")[0], target)
         if "." in target and target.split(".")[0] in imports:
             cls = imports[target.split(".")[0]] + "$" + ".".join(target.split(".")[1:]).replace(".", "$")

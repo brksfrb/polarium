@@ -8,6 +8,8 @@ plugins {
 // with -Pminecraft_version=1.21.11; code that differs between versions sits
 // in //#if MC >= 26.1 … //#else … //#endif blocks (see preprocess below).
 def mc = project.minecraft_version
+// These backports build the pack optimization without the 26.x renderer.
+def packOnly = mc in ['1.16.5', '1.21.11']
 
 /** Minecraft version as numbers, for comparing (26.1.2 → [26, 1, 2]). */
 def parseVersion = { String v -> v.tokenize('.').collect { it as int } }
@@ -157,7 +159,10 @@ base {
 
 sourceSets {
 	main {
-		java.srcDirs = [preprocessedJava]
+		java.srcDirs = [preprocessedJava, 'shared/src/main/java']
+		if (packOnly) {
+			java.include('**/IndexedPackZip.java', '**/PackZipOwnerMixin.java', '**/PackZipEntriesMixin.java')
+		}
 	}
 }
 
@@ -198,8 +203,9 @@ processResources {
 			minecraft_range: minecraftRange,
 			java: javaVersion,
 			loader_min: loaderMin,
+			mixin_java: Math.min(javaVersion, 21),
 	]
-	inputs.properties props
+	inputs.properties props + [packOnly: packOnly]
 	filesMatching(['fabric.mod.json', 'polarium.mixins.json']) {
 		expand props
 	}
@@ -209,13 +215,23 @@ processResources {
 	inputs.dir(preprocessedJava)
 	doLast {
 		def config = new File(destinationDir, 'polarium.mixins.json')
-		def json = new groovy.json.JsonSlurper().parse(config)
+		def slurper = new groovy.json.JsonSlurper()
+		def json = slurper.parse(config)
 		def mixinDir = new File(preprocessedJava.get().asFile, 'com/arcticlauncher/polarium/mixin')
 		json.client = json.client.findAll { name ->
 			def source = new File(mixinDir, "${name}.java")
 			source.exists() && java.util.regex.Pattern.compile('(class|interface)[ ]+' + name + '[ <{]').matcher(source.getText('UTF-8')).find()
 		}
-		logger.lifecycle("Polarium mixins for ${mc}: ${json.client.size()}")
+		if (packOnly) {
+			json.remove('plugin')
+			json.remove('client')
+			def manifest = new File(destinationDir, 'fabric.mod.json')
+			def mod = slurper.parse(manifest)
+			mod.remove('entrypoints')
+			mod.description = 'Faster resource pack and datapack ZIP loading.'
+			manifest.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mod)), 'UTF-8')
+		}
+		logger.lifecycle("Polarium mixins for ${mc}: ${json.mixins.size() + (json.client?.size() ?: 0)}")
 		config.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)), 'UTF-8')
 	}
 }
