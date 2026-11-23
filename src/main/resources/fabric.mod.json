@@ -12,7 +12,7 @@
 	},
 	"license": "GPL-3.0-or-later",
 	"icon": "assets/polarium/icon.png",
-	"environment": "client",
+	"environment": "*",
 	"entrypoints": {
 		"client": ["com.arcticlauncher.polarium.bench.CrowdBench", "com.arcticlauncher.polarium.bench.TerrainBench", "com.arcticlauncher.polarium.bench.MapBench"]
 	},

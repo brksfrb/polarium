@@ -3,7 +3,11 @@
 	"minVersion": "0.8",
 	"package": "com.arcticlauncher.polarium.mixin",
 	"plugin": "com.arcticlauncher.polarium.PolariumMixins",
-	"compatibilityLevel": "JAVA_21",
+	"compatibilityLevel": "JAVA_${mixin_java}",
+	"mixins": [
+		"PackZipOwnerMixin",
+		"PackZipEntriesMixin"
+	],
 	"client": [
 		"ItemFrameModelMixin",
 		"MapRendererMixin",

@@ -3,6 +3,7 @@
 	"package": "com.arcticlauncher.polarium.legacy.mixin",
 	"compatibilityLevel": "JAVA_8",
 	"client": [
+		"ZipResourcePackMixin",
 		"MinecraftClientBenchMixin",
 		"PhasesWorldRendererMixin",
 		"PhasesGameRendererMixin",

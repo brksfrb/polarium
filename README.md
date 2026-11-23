@@ -46,6 +46,12 @@ with the picture unchanged.
 | 26.3 | 0.16.9+ | everything but GPU name tags (name tags are drawn the game's way) |
 | 26.2 | 0.16.9+ | everything |
 | 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states); the GPU path is being ported |
+| 1.21.11, 1.16.5 | 0.16.9+ | ZIP resource packs and datapacks |
+| 1.12.2 | Legacy Fabric | ZIP resource packs |
+| 1.8.9 | Legacy Fabric | ZIP resource packs and legacy renderer optimizations |
+
+ZIP resource packs are indexed on all builds. On Minecraft versions with datapacks,
+the same optimization works for datapack ZIPs on integrated and dedicated servers.
 
 No Fabric API needed.
 
@@ -75,7 +81,7 @@ Polarium looks at what other mods change before taking anything over:
 Turn things off with JVM arguments if something looks wrong:
 `-Dpolarium.off=true` (everything), `-Dpolarium.parallelTicks=false`,
 `-Dpolarium.parallelExtract=false`, `-Dpolarium.lightStates=false`,
-`-Dpolarium.crowd=false`, `-Dpolarium.blocks=false`, `-Dpolarium.skeleton=false`,
+`-Dpolarium.zipIndex=false`, `-Dpolarium.crowd=false`, `-Dpolarium.blocks=false`, `-Dpolarium.skeleton=false`,
 `-Dpolarium.helpers=N` (helper threads; default two thirds of your CPU's
 threads, up to 16). `-Dpolarium.debugTimeline=true` logs where each frame's
 time goes.
@@ -85,6 +91,7 @@ time goes.
 ```
 ./gradlew build                                  # Minecraft 26.2
 ./gradlew build -Pminecraft_version=26.1.2
+./gradlew -p legacy build -Pminecraft_version=1.8.9
 ```
 
 The jar lands in `build/libs/`. Code that differs between Minecraft versions

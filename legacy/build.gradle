@@ -7,6 +7,8 @@ plugins {
 // -Pminecraft_version=1.8.9; code that differs between versions sits in
 // //#if MC >= 1.12 … //#else … //#endif blocks.
 def mc = project.minecraft_version
+// The legacy renderer targets 1.8.9. Also build the ZIP optimization for 1.12.2.
+def packOnly = mc == '1.12.2'
 
 def parseVersion = { String v -> v.tokenize('.').collect { it as int } }
 
@@ -108,7 +110,10 @@ base {
 
 sourceSets {
 	main {
-		java.srcDirs = [preprocessedJava]
+		java.srcDirs = [preprocessedJava, '../shared/src/main/java']
+		if (packOnly) {
+			java.include('**/IndexedPackZip.java', '**/ZipResourcePackMixin.java')
+		}
 	}
 }
 
@@ -131,9 +136,23 @@ processResources {
 			version: project.version,
 			minecraft_range: minecraftRange,
 	]
-	inputs.properties props
+	inputs.properties props + [packOnly: packOnly]
 	filesMatching(['fabric.mod.json', 'polarium-legacy.mixins.json']) {
 		expand props
+	}
+	if (packOnly) {
+		doLast {
+			def slurper = new groovy.json.JsonSlurper()
+			def config = new File(destinationDir, 'polarium-legacy.mixins.json')
+			def mixins = slurper.parse(config)
+			mixins.client = ['ZipResourcePackMixin']
+			config.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mixins)), 'UTF-8')
+			def manifest = new File(destinationDir, 'fabric.mod.json')
+			def mod = slurper.parse(manifest)
+			mod.remove('entrypoints')
+			mod.description = 'Faster resource pack ZIP loading.'
+			manifest.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(mod)), 'UTF-8')
+		}
 	}
 }
 
