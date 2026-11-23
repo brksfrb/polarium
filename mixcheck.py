@@ -22,8 +22,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 JAVAP = os.path.join(os.environ.get("JAVA_HOME", ""), "bin", "javap")
 LOOM = os.path.expanduser("~/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft")
-# Methods a mixin target inherits from classes it doesn't declare; javap -p on
-# the target alone can't see them, so only these are looked up the hierarchy.
+# javap only lists declared members. Bound the search for inherited members.
 MAX_SUPERS = 6
 
 
@@ -47,15 +46,30 @@ class Jar:
         return self.members_cache[cls]
 
     def hierarchy(self, cls):
-        """The class and its superclasses (as far as the jar knows them)."""
-        chain = [cls]
+        """The class and the superclasses and interfaces visible in the game jar."""
+        yield cls
+        seen = {cls}
+        frontier = [cls]
         for _ in range(MAX_SUPERS):
-            head = self.members(chain[-1]).split("{", 1)[0]
-            m = re.search(r"\bextends ([\w.$]+)", head)
-            if not m or not m.group(1).startswith(("net.minecraft", "com.mojang")):
+            parents = []
+            for child in frontier:
+                header = self.members(child).split("{", 1)[0]
+                # Type-parameter bounds also use "extends" in javap's output.
+                while True:
+                    erased = re.sub(r"<[^<>]*>", "", header)
+                    if erased == header:
+                        break
+                    header = erased
+                for clause in re.findall(r"\b(?:extends|implements) ([\w.$]+(?:,\s*[\w.$]+)*)", header):
+                    for parent in clause.strip().split(","):
+                        parent = parent.strip()
+                        if parent.startswith(("net.minecraft.", "com.mojang.")) and parent not in seen:
+                            seen.add(parent)
+                            parents.append(parent)
+                            yield parent
+            if not parents:
                 break
-            chain.append(m.group(1))
-        return chain
+            frontier = parents
 
     def has_member(self, cls, name):
         if name == "<init>":
