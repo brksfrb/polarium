@@ -48,7 +48,7 @@ with the picture unchanged.
 | 26.1.2 | 0.16.9+ | the CPU side (parallel ticks and render states, kept states); the GPU path is being ported |
 | 1.21.11, 1.16.5 | 0.16.9+ | ZIP resource packs and datapacks |
 | 1.12.2 | Legacy Fabric | ZIP resource packs |
-| 1.8.9 | Legacy Fabric | ZIP resource packs and legacy renderer optimizations |
+| 1.8.9 | Legacy Fabric | ZIP resource packs, legacy renderer optimizations, and fixes for the mouse delay, the resource pack path exploit and keys held while a screen closes |
 
 ZIP resource packs are indexed on all builds. On Minecraft versions with datapacks,
 the same optimization works for datapack ZIPs on integrated and dedicated servers.

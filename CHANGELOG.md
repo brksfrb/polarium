@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Minecraft 1.8.9 (Legacy Fabric): three vanilla bugs players hit all the time
+  are fixed, each as Minecraft itself fixed them by 1.12.2 (so only the 1.8.9
+  build needs them). Arctic stopped bundling Patcher, which used to cover them;
+  the audit of what Patcher did and why only these three were rebuilt is in the
+  Polarium/launcher pull requests of 2026-11-26.
+  - `look`: the block or entity under the crosshair (what a click hits) follows
+    the camera between ticks instead of the head yaw of the last tick (the 1.8
+    "mouse delay"). Off with `-Dpolarium.look=false`.
+  - `packurls`: a server's resource pack address may only be http, https or a
+    singleplayer world's own `level://<world>/resources.zip`; `level://../...`
+    and `file:` addresses, which let a server find out which files exist on the
+    player's computer, are answered as a failed download. Off with
+    `-Dpolarium.packurls=false`.
+  - `heldkeys`: keys still held when a screen closes count as pressed again
+    (closing the inventory while holding W keeps walking). Not on macOS. Off
+    with `-Dpolarium.heldkeys=false`.
+
 - Minecraft 1.8.9 (Legacy Fabric, `legacy/`): world rendering is about 1.4 to
   2.3 times faster at the same picture. Same scene each run (seed 20261026,
   hovering at 0 110 0, turning, render distance 11, VBOs off, about 516 visible
