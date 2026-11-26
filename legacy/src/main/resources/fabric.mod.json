@@ -3,7 +3,7 @@
 	"id": "polarium",
 	"version": "${version}",
 	"name": "Polarium",
-	"description": "Performance for old Minecraft: cheaper terrain and entity rendering, no quality loss.",
+	"description": "Performance for old Minecraft: cheaper terrain and entity rendering, no quality loss, plus fixes for three vanilla 1.8.9 bugs.",
 	"authors": ["brksfrb"],
 	"contact": {
 		"sources": "https://github.com/brksfrb/polarium",

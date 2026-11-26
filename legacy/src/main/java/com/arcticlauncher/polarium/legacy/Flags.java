@@ -17,6 +17,15 @@ public final class Flags {
 	/** The camera section's open faces kept until a block changes. */
 	public static final boolean OPEN_FACES = on("openfaces");
 
+	/** The player's crosshair target follows the camera between ticks (1.8.9's mouse delay). */
+	public static final boolean LOOK = on("look");
+
+	/** Server resource pack addresses that could reach files outside a world's pack are refused. */
+	public static final boolean PACK_URLS = on("packurls");
+
+	/** Keys held while a screen closes count as pressed again. */
+	public static final boolean HELD_KEYS = on("heldkeys");
+
 	/** Check every terrain walk against the game's own (slow; for tests). */
 	public static final boolean TERRAIN_VERIFY = "true".equalsIgnoreCase(System.getProperty("polarium.terrain.verify"));
 
@@ -28,6 +37,7 @@ public final class Flags {
 	}
 
 	public static String describe() {
-		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES;
+		return "terrain=" + TERRAIN + " regions=" + REGIONS + " clouds=" + CLOUDS + " entities=" + ENTITIES + " openfaces=" + OPEN_FACES
+				+ " look=" + LOOK + " packurls=" + PACK_URLS + " heldkeys=" + HELD_KEYS;
 	}
 }

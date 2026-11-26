@@ -16,7 +16,10 @@
 		"AbstractManagerAccess",
 		"BuiltChunkRegionMixin",
 		"ListedRegionRenderMixin",
-		"WorldRendererCloudsMixin"
+		"WorldRendererCloudsMixin",
+		"ClientPlayerLookMixin",
+		"ServerPackUrlMixin",
+		"HeldKeysMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
