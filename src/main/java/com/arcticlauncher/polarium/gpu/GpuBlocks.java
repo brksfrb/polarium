@@ -55,6 +55,10 @@ public final class GpuBlocks {
 			}
 			return false;
 		}
+		if (!InstancedPipelines.ready(type.pipeline(), ItemMesh.SHADER)) {
+			// Still compiling (or it can't): the game draws it meanwhile.
+			return false;
+		}
 		try {
 			ItemMesh mesh = mesh(submit.modelParts(), type);
 			if (mesh == null) {

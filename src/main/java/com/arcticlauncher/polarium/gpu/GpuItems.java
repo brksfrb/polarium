@@ -59,7 +59,7 @@ public final class GpuItems {
 				return false;
 			}
 			for (ItemMesh mesh : parts) {
-				if (!InstancedPipelines.supports(mesh.renderType.pipeline(), ITEM_SHADER)) {
+				if (!InstancedPipelines.usable(mesh.renderType.pipeline(), ITEM_SHADER, ItemMesh.SHADER)) {
 					return false;
 				}
 			}
@@ -134,7 +134,7 @@ public final class GpuItems {
 		for (BakedQuad quad : quads) {
 			BakedQuad.MaterialInfo material = quad.materialInfo();
 			if (material.isTinted() && material.tintIndex() >= ItemMesh.TINT_SLOTS
-					|| !InstancedPipelines.supports(material.itemRenderType().pipeline(), ITEM_SHADER)) {
+					|| !InstancedPipelines.usable(material.itemRenderType().pipeline(), ITEM_SHADER, ItemMesh.SHADER)) {
 				return false;
 			}
 			//#if MC >= 26.3

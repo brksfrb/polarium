@@ -424,7 +424,17 @@ public final class GpuText implements GpuFeature {
 		return true;
 	}
 
+	/**
+	 * The vertex shader of this type's twin, if Polarium draws it and the twin is compiled
+	 * (until then the game draws the tag; never waits on the compile).
+	 */
 	private static @Nullable Identifier shaderFor(RenderType type) {
+		Identifier shader = twinShader(type);
+		return shader != null && InstancedPipelines.ready(type.pipeline(), shader, LAYOUT, SLOT_FORMAT, ITEM_FORMAT) ? shader : null;
+	}
+
+	/** The vertex shader of this type's twin, if Polarium draws text of this type. */
+	private static @Nullable Identifier twinShader(RenderType type) {
 		RenderPipeline pipeline = type.pipeline();
 		if (pipeline.getPrimitiveTopology() != PrimitiveTopology.QUADS) {
 			return null;
@@ -447,7 +457,7 @@ public final class GpuText implements GpuFeature {
 		Batch batch = spare.isEmpty() ? new Batch() : spare.removeLast();
 		batch.type = type;
 		batch.prepared = prepared.computeIfAbsent(type, RenderType::prepare);
-		batch.pipeline = InstancedPipelines.twin(batch.prepared.pipeline(), shaderFor(type), LAYOUT, SLOT_FORMAT, ITEM_FORMAT);
+		batch.pipeline = InstancedPipelines.twin(batch.prepared.pipeline(), twinShader(type), LAYOUT, SLOT_FORMAT, ITEM_FORMAT);
 		batch.count = 0;
 		batch.maxVertices = 0;
 		group.add(batch);
@@ -622,8 +632,13 @@ public final class GpuText implements GpuFeature {
 			int indexCount = (batch.maxVertices + 3) / 4 * 6;
 			//#if MC >= 26.3
 			RenderPass pass = java.util.Objects.requireNonNull(this.pass, "no render pass");
+			// Never RenderSystem.getCompiledPipeline: it can wait on a stalled compile forever (crash 596).
+			com.mojang.blaze3d.pipeline.CompiledRenderPipeline compiled = InstancedPipelines.compiled(batch.pipeline);
+			if (compiled == null) {
+				continue;
+			}
 			{
-				pass.setPipeline(RenderSystem.getCompiledPipeline(batch.pipeline));
+				pass.setPipeline(compiled);
 			//#else
 			RenderTarget target = type.outputTarget().getRenderTarget();
 			GpuTextureView color = RenderSystem.outputColorTextureOverride != null

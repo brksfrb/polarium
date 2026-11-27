@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Minecraft 26.2 and 26.3: Polarium's instanced versions of the game's entity,
+  item, block and name tag pipelines compile in the background instead of the
+  game waiting for them. On 26.3 that wait was a join on the shader compile, and
+  when the compile stalled (an Intel iGPU, crash 596) the game froze for good.
+  Until a pipeline's instanced version has compiled, the game draws those
+  entities its own way; one that fails to compile stays on the game's way for
+  the session (logged once) instead of switching the whole GPU path off. On
+  26.3 the instanced draws no longer go through the pipeline cache lookup that
+  waits either (after a resource reload the twins compile again in the
+  background).
+
 - Minecraft 1.8.9 (Legacy Fabric): three vanilla bugs players hit all the time
   are fixed, each as Minecraft itself fixed them by 1.12.2 (so only the 1.8.9
   build needs them). Arctic stopped bundling Patcher, which used to cover them;

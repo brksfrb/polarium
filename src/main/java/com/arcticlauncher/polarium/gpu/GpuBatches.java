@@ -176,6 +176,12 @@ public final class GpuBatches implements GpuFeature {
 			batch = spare.isEmpty() ? new Batch() : spare.removeLast();
 			batch.prepared = preparedType;
 			batch.pipeline = InstancedPipelines.twin(preparedType.pipeline(), mesh.vertexShader);
+			//#if MC >= 26.3
+			if (preparedType.oitPipelineSet() != null) {
+				// Its transparency stages' twins too, before the game hands it over again (see drawInto).
+				InstancedPipelines.alsoNeedsOit(preparedType.pipeline(), mesh.vertexShader, preparedType.oitPipelineSet());
+			}
+			//#endif
 			batch.mesh = mesh;
 			batch.anyOrder = anyOrder;
 			batch.atlas = atlas;
@@ -287,6 +293,7 @@ public final class GpuBatches implements GpuFeature {
 	@Override
 	public void prepareDraws() {
 		try {
+			InstancedPipelines.advanceAll();
 			upload(false);
 		} catch (RuntimeException e) {
 			disable("preparing models for the GPU failed", e);
@@ -445,9 +452,16 @@ public final class GpuBatches implements GpuFeature {
 			RenderPipeline pipeline = stage != null && type.oitPipelineSet() != null
 					? InstancedPipelines.twin(type.oitPipelineSet().getPipeline(stage), batch.mesh.vertexShader)
 					: batch.pipeline;
+			// Never RenderSystem.getCompiledPipeline: on a twin not in the game's cache it waits on the
+			// compile, forever if that stalls (crash 596). One not compiled (yet) isn't drawn: the game's
+			// pipelines draw entities until their twins are ready (InstancedPipelines.ready).
+			com.mojang.blaze3d.pipeline.CompiledRenderPipeline compiled = InstancedPipelines.compiled(pipeline);
+			if (compiled == null) {
+				continue;
+			}
 			int indexCount = batch.mesh.vertexCount / 4 * 6;
 			pass.pushDebugGroup(() -> "Polarium instanced " + type.name());
-			pass.setPipeline(RenderSystem.getCompiledPipeline(pipeline));
+			pass.setPipeline(compiled);
 			if (type.scissorState().enabled()) {
 				pass.enableScissor(type.scissorState().x(), type.scissorState().y(), type.scissorState().width(), type.scissorState().height());
 			}
