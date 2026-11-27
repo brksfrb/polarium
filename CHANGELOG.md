@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.32.0
 
 - Minecraft 26.2 and 26.3: Polarium's instanced versions of the game's entity,
   item, block and name tag pipelines compile in the background instead of the
@@ -71,6 +71,12 @@
   no such entity: in a pile that search was most of the tick, and it found
   nothing. The answer is the same empty list; any entity that can be bumped
   into brings the full search back.
+
+## 0.31.3
+
+- Fixes a crash when joining servers that spawn mobs in a bundle (SyroMC's shulkers:
+  "Network Protocol Error"): a mob still being created has no attributes yet,
+  and the game answers scale 1.0 for it, as Polarium now does.
 
 ## 0.31.2
 
