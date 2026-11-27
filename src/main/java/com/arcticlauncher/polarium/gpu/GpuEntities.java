@@ -120,7 +120,7 @@ public final class GpuEntities {
 
 	/** Whether models of this render type can be drawn on the GPU path at all. */
 	static boolean drawable(RenderType renderType) {
-		return InstancedPipelines.supports(renderType.pipeline(), ENTITY_SHADER);
+		return InstancedPipelines.usable(renderType.pipeline(), ENTITY_SHADER, ModelMesh.SHADER);
 	}
 
 	private static boolean takeable(ModelFeatureRenderer.Submit<?> submit) {
@@ -129,7 +129,7 @@ public final class GpuEntities {
 		//#else
 		return submit.sprite() == null && submit.sheetedDecalPose() == null
 		//#endif
-				&& InstancedPipelines.supports(submit.renderType().pipeline(), ENTITY_SHADER);
+				&& InstancedPipelines.usable(submit.renderType().pipeline(), ENTITY_SHADER, ModelMesh.SHADER);
 	}
 
 	/** Take this submit onto the GPU path; false to let the game build its vertices. */

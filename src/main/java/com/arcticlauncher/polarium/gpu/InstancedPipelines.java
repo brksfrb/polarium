@@ -5,6 +5,7 @@ import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.BindGroupLayout;
 import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.CompiledRenderPipeline;
 import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.PolygonMode;
@@ -17,9 +18,11 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import net.minecraft.client.renderer.ShaderDefines;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
@@ -39,9 +42,50 @@ final class InstancedPipelines {
 	static final BindGroupLayout ENTITY_DATA = BindGroupLayout.builder()
 			.withUniform("PolariumInstances", UniformType.TEXEL_BUFFER, GpuFormat.RGBA32_FLOAT)
 			.build();
-	/** Twins by original pipeline, then by vertex shader. */
-	private static final Map<RenderPipeline, Map<Identifier, RenderPipeline>> TWINS = new IdentityHashMap<>();
+	/** Twins by original pipeline (identity: RenderPipeline doesn't override equals), then by vertex shader. */
+	private static final Map<RenderPipeline, Map<Identifier, Twin>> TWINS = new ConcurrentHashMap<>();
+	/** The same twins by their own pipeline, for drawing with them. */
+	private static final Map<RenderPipeline, Twin> BY_PIPELINE = new ConcurrentHashMap<>();
+	private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("Polarium");
 	private static @Nullable Constructor<RenderPipeline> constructor;
+
+	/** A twin pipeline and its compile, which nothing ever waits on (see {@link AsyncCompile}). */
+	private static final class Twin {
+		final RenderPipeline pipeline;
+		final AsyncCompile<CompiledRenderPipeline> compile;
+		/** Other twins it can't draw without (26.3: its transparency stages' twins). */
+		volatile List<Twin> alsoNeeds = List.of();
+
+		Twin(RenderPipeline original, RenderPipeline pipeline) {
+			this.pipeline = pipeline;
+			this.compile = new AsyncCompile<>(new AsyncCompile.Compiler<>() {
+				@Override
+				public CompletableFuture<Supplier<CompiledRenderPipeline>> start() {
+					return InstancedPipelines.start(pipeline);
+				}
+
+				@Override
+				public boolean isClosed(CompiledRenderPipeline compiled) {
+					//#if MC >= 26.3
+					return compiled.isClosed();
+					//#else
+					return false;
+					//#endif
+				}
+			}, e -> LOG.warn("Polarium: the GPU couldn't compile its version of {}; the game draws it its own way from now on",
+					original.getLocation(), e));
+		}
+
+		/** Compiled and ready, with everything it also needs; on the render thread, moves the compiles along first. */
+		boolean ready() {
+			boolean renderThread = RenderSystem.isOnRenderThread();
+			boolean ready = (renderThread ? compile.advance() : compile.ready()) != null;
+			for (Twin other : alsoNeeds) {
+				ready &= (renderThread ? other.compile.advance() : other.compile.ready()) != null;
+			}
+			return ready;
+		}
+	}
 
 	private InstancedPipelines() {}
 
@@ -61,28 +105,160 @@ final class InstancedPipelines {
 		return twin(original, vertexShader, layout, format);
 	}
 
-	/** {@code original} with this vertex shader, extra bind group and these vertex buffers (bindings 0, 1, ...). */
+	/**
+	 * {@code original} with this vertex shader, extra bind group and these vertex buffers (bindings 0, 1, ...),
+	 * made now if new. Not necessarily compiled yet: only build batches with it once {@link #ready} said so,
+	 * and draw them with {@link #compiled}.
+	 */
 	static RenderPipeline twin(RenderPipeline original, Identifier vertexShader, BindGroupLayout layout, VertexFormat... formats) {
-		Map<Identifier, RenderPipeline> twins = TWINS.computeIfAbsent(original, p -> new java.util.HashMap<>());
-		RenderPipeline twin = twins.get(vertexShader);
+		return entry(original, vertexShader, layout, formats).pipeline;
+	}
+
+	private static Twin entry(RenderPipeline original, Identifier vertexShader, BindGroupLayout layout, VertexFormat... formats) {
+		Map<Identifier, Twin> twins = TWINS.computeIfAbsent(original, p -> new ConcurrentHashMap<>());
+		Twin twin = twins.get(vertexShader);
 		if (twin == null) {
-			// The pipeline keeps one slot per possible binding: fill ours, clear the rest.
-			//#if MC >= 26.3
-			VertexFormat[] bindings = original.getVertexFormatBindings().toArray(new VertexFormat[0]);
-			//#else
-			VertexFormat[] bindings = original.getVertexFormatBindings().clone();
-			//#endif
-			java.util.Arrays.fill(bindings, null);
-			System.arraycopy(formats, 0, bindings, 0, formats.length);
-			twin = create(original, vertexShader, layout, bindings);
-			// Compiled now: a shader that doesn't compile would otherwise draw nothing, silently.
-			if (!compiles(twin)) {
-				throw new IllegalStateException("the GPU couldn't compile Polarium's version of " + original.getLocation());
-			}
-			twins.put(vertexShader, twin);
+			twin = twins.computeIfAbsent(vertexShader, shader -> {
+				// The pipeline keeps one slot per possible binding: fill ours, clear the rest.
+				//#if MC >= 26.3
+				VertexFormat[] bindings = original.getVertexFormatBindings().toArray(new VertexFormat[0]);
+				//#else
+				VertexFormat[] bindings = original.getVertexFormatBindings().clone();
+				//#endif
+				java.util.Arrays.fill(bindings, null);
+				System.arraycopy(formats, 0, bindings, 0, formats.length);
+				Twin made = new Twin(original, create(original, shader, layout, bindings));
+				BY_PIPELINE.put(made.pipeline, made);
+				return made;
+			});
 		}
 		return twin;
 	}
+
+	/** Moves every twin's compile along (render thread, once a frame): starts new ones, takes finished ones. */
+	static void advanceAll() {
+		for (Twin twin : BY_PIPELINE.values()) {
+			twin.compile.advance();
+		}
+	}
+
+	/**
+	 * Whether {@code original}'s twin with this vertex shader is compiled (with whatever else it
+	 * needs): until then the game draws it its own way. Starts its compile if new; never waits.
+	 */
+	static boolean ready(RenderPipeline original, Identifier vertexShader) {
+		return ready(original, vertexShader, ModelMesh.FORMAT, INSTANCES);
+	}
+
+	static boolean ready(RenderPipeline original, Identifier vertexShader, VertexFormat format, BindGroupLayout layout) {
+		return ready(original, vertexShader, layout, format);
+	}
+
+	static boolean ready(RenderPipeline original, Identifier vertexShader, BindGroupLayout layout, VertexFormat... formats) {
+		return entry(original, vertexShader, layout, formats).ready();
+	}
+
+	/**
+	 * Whether this pipeline is one of the game's for {@code gameShader} and its twin with
+	 * {@code twinShader} is ready (see {@link #supports}, {@link #ready}).
+	 */
+	static boolean usable(RenderPipeline pipeline, Identifier gameShader, Identifier twinShader) {
+		return supports(pipeline, gameShader) && ready(pipeline, twinShader);
+	}
+
+	//#if MC >= 26.3
+	/**
+	 * {@code original}'s twin also needs its transparency stages' twins to draw: until they compiled
+	 * too, {@link #ready} says no for it (and the game draws it); if one never compiles, for good.
+	 */
+	static void alsoNeedsOit(RenderPipeline original, Identifier vertexShader, net.minecraft.client.renderer.oit.OitPipelineSet stages) {
+		Twin twin = entry(original, vertexShader, INSTANCES, ModelMesh.FORMAT);
+		if (!twin.alsoNeeds.isEmpty()) {
+			return;
+		}
+		List<Twin> needs = new ArrayList<>();
+		for (net.minecraft.client.renderer.oit.OitStage stage : net.minecraft.client.renderer.oit.OitStage.values()) {
+			needs.add(entry(stages.getPipeline(stage), vertexShader, INSTANCES, ModelMesh.FORMAT));
+		}
+		twin.alsoNeeds = List.copyOf(needs);
+	}
+
+	/**
+	 * The compiled twin to draw with, or null: still compiling, couldn't compile, or freed by a
+	 * resource reload (compiling again). Then skip the draw. Render thread; never waits.
+	 */
+	static @Nullable CompiledRenderPipeline compiled(RenderPipeline twin) {
+		Twin entry = BY_PIPELINE.get(twin);
+		return entry != null ? entry.compile.advance() : null;
+	}
+
+	/**
+	 * Starts compiling the twin as the game's pipeline cache would (RenderSystem.getCompiledPipeline),
+	 * but without its join(): the shaders are made on the game's background threads, and the
+	 * result is finished (on the render thread) and handed to the cache once they're done.
+	 */
+	private static CompletableFuture<Supplier<CompiledRenderPipeline>> start(RenderPipeline twin) {
+		com.mojang.blaze3d.pipeline.PipelineCache cache = activeCache();
+		com.mojang.renderpearl.api.pipeline.ShaderSource source;
+		try {
+			source = (com.mojang.renderpearl.api.pipeline.ShaderSource) shaderSourceField().get(cache);
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalStateException("can't read the pipeline cache's shaders", e);
+		}
+		return RenderSystem.getDevice().compilePipeline(twin, source, net.minecraft.util.Util.backgroundExecutor())
+				.thenApply(pending -> () -> {
+					CompiledRenderPipeline compiled = pending.finishCompile();
+					if (compiled != null) {
+						// The cache owns it from here: a reload closes it (and the twin compiles again).
+						activeCache().insert(twin, compiled);
+					}
+					return compiled;
+				});
+	}
+
+	private static java.lang.reflect.@Nullable Field currentCache;
+	private static java.lang.reflect.@Nullable Field fallbackCache;
+	private static java.lang.reflect.@Nullable Field shaderSource;
+
+	/** The cache RenderSystem.getCompiledPipeline looks in first. */
+	private static com.mojang.blaze3d.pipeline.PipelineCache activeCache() {
+		try {
+			if (currentCache == null || fallbackCache == null) {
+				java.lang.reflect.Field current = RenderSystem.class.getDeclaredField("currentPipelineCache");
+				java.lang.reflect.Field fallback = RenderSystem.class.getDeclaredField("fallbackPipelineCache");
+				current.setAccessible(true);
+				fallback.setAccessible(true);
+				currentCache = current;
+				fallbackCache = fallback;
+			}
+			Object cache = currentCache.get(null);
+			if (cache == null) {
+				cache = fallbackCache.get(null);
+			}
+			if (cache == null) {
+				throw new IllegalStateException("no pipeline cache yet");
+			}
+			return (com.mojang.blaze3d.pipeline.PipelineCache) cache;
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalStateException("can't find the game's pipeline cache", e);
+		}
+	}
+
+	private static java.lang.reflect.Field shaderSourceField() throws NoSuchFieldException {
+		if (shaderSource == null) {
+			java.lang.reflect.Field found = com.mojang.blaze3d.pipeline.PipelineCache.class.getDeclaredField("shaderSource");
+			found.setAccessible(true);
+			shaderSource = found;
+		}
+		return shaderSource;
+	}
+	//#else
+	/** 26.2 compiles at once, on this thread (no future to wait on): finished the moment it's started. */
+	private static CompletableFuture<Supplier<CompiledRenderPipeline>> start(RenderPipeline twin) {
+		CompiledRenderPipeline compiled = RenderSystem.getDevice().precompilePipeline(twin);
+		return CompletableFuture.completedFuture(() -> compiled.isValid() ? compiled : null);
+	}
+	//#endif
 
 	private static RenderPipeline create(RenderPipeline original, Identifier vertexShader, BindGroupLayout layout, VertexFormat[] bindings) {
 		List<BindGroupLayout> layouts = new ArrayList<>(original.getBindGroupLayouts());
@@ -115,15 +291,6 @@ final class InstancedPipelines {
 		return pipeline.getShaders().get(ShaderType.VERTEX);
 		//#else
 		return pipeline.getVertexShader();
-		//#endif
-	}
-
-	/** Compiles now (a shader that doesn't would draw nothing, silently). */
-	static boolean compiles(RenderPipeline pipeline) {
-		//#if MC >= 26.3
-		return RenderSystem.getCompiledPipelineNullable(pipeline) != null;
-		//#else
-		return RenderSystem.getDevice().precompilePipeline(pipeline).isValid();
 		//#endif
 	}
 

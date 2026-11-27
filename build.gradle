@@ -104,6 +104,7 @@ def renames = atLeast('26.3') ? [
 		'com.mojang.blaze3d.opengl.GlTexture'            : 'com.mojang.renderpearl.backend.opengl.GlTexture',
 		'com.mojang.blaze3d.pipeline.BindGroupLayout'    : 'com.mojang.renderpearl.api.pipeline.BindGroupLayout',
 		'com.mojang.blaze3d.pipeline.ColorTargetState'   : 'com.mojang.renderpearl.api.pipeline.ColorTargetState',
+		'com.mojang.blaze3d.pipeline.CompiledRenderPipeline' : 'com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline',
 		'com.mojang.blaze3d.pipeline.DepthStencilState'  : 'com.mojang.renderpearl.api.pipeline.DepthStencilState',
 		'com.mojang.blaze3d.pipeline.RenderPipeline'     : 'com.mojang.renderpearl.api.pipeline.RenderPipeline',
 		'com.mojang.blaze3d.platform.PolygonMode'        : 'com.mojang.renderpearl.api.pipeline.PolygonMode',
@@ -234,6 +235,20 @@ processResources {
 		logger.lifecycle("Polarium mixins for ${mc}: ${json.mixins.size() + (json.client?.size() ?: 0)}")
 		config.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)), 'UTF-8')
 	}
+}
+
+// Unit tests, for the parts that run without the game (src/test/java: 26.2 and later sources).
+if (atLeast('26.2') && !packOnly) {
+	dependencies {
+		testImplementation platform('org.junit:junit-bom:5.11.4')
+		testImplementation 'org.junit.jupiter:junit-jupiter'
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	}
+	tasks.named('test') {
+		useJUnitPlatform()
+	}
+} else {
+	sourceSets.test.java.srcDirs = []
 }
 
 tasks.withType(JavaCompile).configureEach {
